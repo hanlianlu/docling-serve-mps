@@ -12,7 +12,8 @@ It runs Docling natively on macOS so PyTorch can use Metal Performance Shaders
 - Eight CPU threads for pipeline stages that remain CPU-bound
 - Loopback-only listener on port 5001
 - Models loaded at startup and cached by Docling/Hugging Face
-- UI, external plugins, and remote model services disabled
+- Local Docling UI enabled on the same loopback-only service
+- External plugins and remote model services disabled
 
 ## Requirements
 
@@ -76,6 +77,16 @@ Restart after changing `service.env`:
 The service does not start automatically after a macOS reboot. Run
 `./service.sh start` when needed.
 
+Open the local Docling UI after the health check passes:
+
+```text
+http://127.0.0.1:5001/ui
+```
+
+The UI is not separately authenticated, so the service remains bound to
+`127.0.0.1`. Do not change `DOCLING_HOST` to `0.0.0.0` unless an authenticated
+reverse proxy protects the service.
+
 ## Files
 
 ```text
@@ -128,6 +139,7 @@ PYTORCH_ENABLE_MPS_FALLBACK=1
 DOCLING_NUM_THREADS=8
 DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1
 DOCLING_SERVE_OPTIONS_CACHE_SIZE=2
+DOCLING_SERVE_ENABLE_UI=true
 ```
 
 Keep one converter worker unless benchmarks show a benefit from concurrency.

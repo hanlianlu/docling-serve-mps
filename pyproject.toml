@@ -3,5 +3,5 @@ name = "docling-serve-mps"
 version = "0.1.0"
 requires-python = ">=3.13"
 dependencies = [
-    "docling-serve>=1.28.0",
+    "docling-serve[ui]>=1.28.0",
 ]
