@@ -1,7 +1,17 @@
 [project]
 name = "docling-serve-mps"
 version = "0.1.0"
+description = "Native MPS deployment wrapper for Docling Serve on Apple Silicon"
+readme = "README.md"
 requires-python = ">=3.13"
+license = "MIT"
+authors = [{ name = "Hanlian Lyu", email = "hanlianlyu@outlook.com" }]
+maintainers = [{ name = "Hanlian Lyu", email = "hanlianlyu@outlook.com" }]
 dependencies = [
     "docling-serve[ui]>=1.28.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/hanlianlu/docling-serve-mps"
+Repository = "https://github.com/hanlianlu/docling-serve-mps"
+Issues = "https://github.com/hanlianlu/docling-serve-mps/issues"

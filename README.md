@@ -182,3 +182,7 @@ lsof -nP -iTCP:5001 -sTCP:LISTEN
 Initial startup can take longer while model artifacts are downloaded and
 loaded. `./service.sh status` may report that the process is alive but health is
 not ready during this period; follow `./service.sh logs` for progress.
+
+## License
+
+MIT License. Copyright (c) 2026 Hanlian Lyu. See [LICENSE](LICENSE).
