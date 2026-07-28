@@ -11,7 +11,7 @@ jobs:
   build:
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with:
           version: "0.9.3"
@@ -45,7 +45,7 @@ jobs:
         run: zsh tests/test_service.sh
       - name: Check distribution metadata
         run: uvx twine check dist/*
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-package-distributions
           path: dist/
@@ -60,7 +60,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: python-package-distributions
           path: dist/
