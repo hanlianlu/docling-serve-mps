@@ -9,6 +9,7 @@ authors = [{ name = "Hanlian Lyu", email = "hanlianlyu@outlook.com" }]
 maintainers = [{ name = "Hanlian Lyu", email = "hanlianlyu@outlook.com" }]
 dependencies = [
     "docling-serve[ui]>=1.28.0",
+    "docling-slim[feat-ocr-mac]>=2.115.0",
 ]
 
 [project.urls]

@@ -7,6 +7,8 @@ RUN_DIR="$ROOT/run"
 PID_FILE="$RUN_DIR/docling-serve.pid"
 LOG_FILE="$RUN_DIR/docling-serve.log"
 SCRATCH_DIR="$RUN_DIR/scratch"
+PYTHON_BIN="$ROOT/.venv/bin/python"
+SERVER_BIN="$ROOT/.venv/bin/docling-serve"
 
 set -a
 source "$ENV_FILE"
@@ -14,6 +16,24 @@ set +a
 
 mkdir -p "$RUN_DIR" "$SCRATCH_DIR"
 export DOCLING_SERVE_SCRATCH_PATH="$SCRATCH_DIR"
+
+environment_ready() {
+  [[ -x "$PYTHON_BIN" && -x "$SERVER_BIN" ]] || return 1
+  "$PYTHON_BIN" -c 'import docling_serve, ocrmac' >/dev/null 2>&1
+}
+
+ensure_environment() {
+  environment_ready && return 0
+  command -v uv >/dev/null 2>&1 || {
+    print -u2 "uv is required to create the locked service environment."
+    return 1
+  }
+  (cd "$ROOT" && uv sync --locked)
+  environment_ready || {
+    print -u2 "Locked environment is missing Docling Serve or OCRMac after sync."
+    return 1
+  }
+}
 
 running_pid() {
   if [[ -f "$PID_FILE" ]]; then
@@ -35,8 +55,9 @@ start_service() {
     return 0
   fi
 
+  ensure_environment
   cd "$ROOT"
-  nohup "$ROOT/.venv/bin/docling-serve" run \
+  nohup "$SERVER_BIN" run \
     --host "$DOCLING_HOST" \
     --port "$DOCLING_PORT" \
     --workers "$UVICORN_WORKERS" \
@@ -76,11 +97,12 @@ status_service() {
 
 case "${1:-}" in
   start) start_service ;;
+  prepare) ensure_environment ;;
   stop) stop_service ;;
   status) status_service ;;
   logs) exec tail -f "$LOG_FILE" ;;
   *)
-    print "Usage: $0 {start|stop|status|logs}"
+    print "Usage: $0 {prepare|start|stop|status|logs}"
     exit 2
     ;;
 esac
