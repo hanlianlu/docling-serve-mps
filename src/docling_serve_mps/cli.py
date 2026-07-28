@@ -253,14 +253,18 @@ def start_service(
         if record is not None:
             pid = int(record["pid"])
             marker = str(record["command_marker"])
-            command = process_command(pid)
-            if command and marker in command:
-                if not health_ready(environment):
-                    wait_for_health(environment, pid, start_timeout)
-                return _started_message(
-                    resolved_paths, environment, pid, already_running=True
-                )
-            resolved_paths.pid.unlink(missing_ok=True)
+            if marker != COMMAND_MARKER:
+                resolved_paths.pid.unlink(missing_ok=True)
+                record = None
+            else:
+                command = process_command(pid)
+                if command and marker in command:
+                    if not health_ready(environment):
+                        wait_for_health(environment, pid, start_timeout)
+                    return _started_message(
+                        resolved_paths, environment, pid, already_running=True
+                    )
+                resolved_paths.pid.unlink(missing_ok=True)
 
         child = _spawn_service(resolved_paths, environment)
         _write_pid_record(resolved_paths, child.pid)
@@ -304,6 +308,11 @@ def stop_service(
 
         pid = int(record["pid"])
         marker = str(record["command_marker"])
+        if marker != COMMAND_MARKER:
+            resolved_paths.pid.unlink(missing_ok=True)
+            raise ServiceError(
+                f"Refusing to stop unrelated process {pid}; removed stale state."
+            )
         command = process_command(pid)
         if command is None:
             resolved_paths.pid.unlink(missing_ok=True)

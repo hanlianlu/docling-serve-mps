@@ -1064,7 +1064,7 @@ ui = [
 [[package]]
 name = "docling-serve-mps"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "docling-serve", extra = ["ui"] },
     { name = "docling-slim", extra = ["feat-ocr-mac"] },

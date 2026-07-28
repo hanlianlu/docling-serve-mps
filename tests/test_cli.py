@@ -108,8 +108,30 @@ class CliContractTest(unittest.TestCase):
             kill.assert_not_called()
             self.assertFalse(paths.pid.exists())
 
+    def test_stop_rejects_tampered_command_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            paths = cli.ServicePaths(Path(temporary_directory))
+            paths.root.mkdir(parents=True, exist_ok=True)
+            paths.pid.write_text(
+                json.dumps({"pid": 4321, "command_marker": "python"}),
+                encoding="utf-8",
+            )
+            with (
+                patch.object(
+                    cli,
+                    "process_command",
+                    return_value="python -m unrelated_service",
+                ),
+                patch.object(cli.os, "kill") as kill,
+                self.assertRaisesRegex(cli.ServiceError, "unrelated process"),
+            ):
+                cli.stop_service(paths=paths)
+
+            kill.assert_not_called()
+            self.assertFalse(paths.pid.exists())
+
     def test_stop_terminates_managed_process(self) -> None:
-        marker = "docling-serve-mps-test-process"
+        marker = cli.COMMAND_MARKER
         process = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(30)", marker]
         )
