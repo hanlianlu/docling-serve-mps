@@ -31,15 +31,16 @@ ready_root=$(prepare_fixture ready)
 ready_uv_log="$ready_root/uv.log"
 cat >"$ready_root/fake-bin/uv" <<'EOF'
 #!/bin/zsh
+set -euo pipefail
 print -r -- "$*" >>"$UV_LOG"
-exit 99
+[[ "$#" -eq 3 && "$1" == "sync" && "$2" == "--locked" && "$3" == "--check" ]]
 EOF
 chmod +x "$ready_root/fake-bin/uv"
 write_ready_environment "$ready_root"
 UV_LOG="$ready_uv_log" PATH="$ready_root/fake-bin:$PATH" \
   "$ready_root/service.sh" prepare
-[[ ! -e "$ready_uv_log" ]] || {
-  print -u2 "prepare invoked uv for an already complete environment"
+[[ "$(<"$ready_uv_log")" == "sync --locked --check" ]] || {
+  print -u2 "prepare mutated an already complete environment"
   exit 1
 }
 
@@ -49,6 +50,9 @@ cat >"$missing_root/fake-bin/uv" <<'EOF'
 #!/bin/zsh
 set -euo pipefail
 print -r -- "$*" >>"$UV_LOG"
+if [[ "$#" -eq 3 && "$1" == "sync" && "$2" == "--locked" && "$3" == "--check" ]]; then
+  exit 0
+fi
 [[ "$#" -eq 2 && "$1" == "sync" && "$2" == "--locked" ]]
 mkdir -p .venv/bin
 cat >.venv/bin/python <<'PYTHON'
@@ -64,8 +68,8 @@ EOF
 chmod +x "$missing_root/fake-bin/uv"
 UV_LOG="$missing_uv_log" PATH="$missing_root/fake-bin:$PATH" \
   "$missing_root/service.sh" prepare
-[[ "$(<"$missing_uv_log")" == "sync --locked" ]] || {
-  print -u2 "prepare did not invoke exactly: uv sync --locked"
+[[ "$(<"$missing_uv_log")" == $'sync --locked\nsync --locked --check' ]] || {
+  print -u2 "prepare did not repair and verify the locked environment"
   exit 1
 }
 

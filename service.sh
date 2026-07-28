@@ -19,6 +19,8 @@ export DOCLING_SERVE_SCRATCH_PATH="$SCRATCH_DIR"
 
 environment_ready() {
   [[ -x "$PYTHON_BIN" && -x "$SERVER_BIN" ]] || return 1
+  command -v uv >/dev/null 2>&1 || return 1
+  (cd "$ROOT" && uv sync --locked --check >/dev/null 2>&1) || return 1
   "$PYTHON_BIN" -c 'import docling_serve, ocrmac' >/dev/null 2>&1
 }
 
