@@ -1,6 +1,6 @@
 # Docling Serve for Apple Silicon
 
-[![PyPI](https://img.shields.io/pypi/v/docling-serve-mps.svg)](https://pypi.org/project/docling-serve-mps/)
+[![PyPI](https://img.shields.io/pypi/v/docling-serve-mps.svg?cacheSeconds=300)](https://pypi.org/project/docling-serve-mps/)
 [![CI](https://github.com/hanlianlu/docling-serve-mps/actions/workflows/ci.yml/badge.svg)](https://github.com/hanlianlu/docling-serve-mps/actions/workflows/ci.yml)
 
 A native, background Docling Serve sidecar for Apple Silicon. PyTorch-backed
