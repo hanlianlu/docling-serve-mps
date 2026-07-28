@@ -1,0 +1,1 @@
+"""Native Apple Silicon lifecycle wrapper for Docling Serve."""
