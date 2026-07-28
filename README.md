@@ -1,5 +1,8 @@
 # Docling Serve for Apple Silicon
 
+[![PyPI](https://img.shields.io/pypi/v/docling-serve-mps.svg)](https://pypi.org/project/docling-serve-mps/)
+[![CI](https://github.com/hanlianlu/docling-serve-mps/actions/workflows/ci.yml/badge.svg)](https://github.com/hanlianlu/docling-serve-mps/actions/workflows/ci.yml)
+
 A native, background Docling Serve sidecar for Apple Silicon. PyTorch-backed
 Docling pipeline stages use Metal Performance Shaders (MPS), OCR uses Apple's
 Vision framework through OCRMac, and Dockerized clients connect through
@@ -197,6 +200,13 @@ The `start` output prints the persistent log path. Initial startup can take
 longer while model artifacts are downloaded and loaded. Docling logs the
 selected accelerator as `mps`; OCRMac delegates recognition to Apple Vision
 independently.
+
+## Release
+
+Maintainers publish by creating a GitHub Release whose tag exactly matches the
+`pyproject.toml` version with a `v` prefix, for example `v0.1.0`. The release
+workflow rebuilds and tests the artifacts, then publishes through PyPI Trusted
+Publishing with GitHub OIDC. No PyPI API token is stored in GitHub.
 
 ## License
 

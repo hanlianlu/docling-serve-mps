@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.3"
+          enable-cache: true
+      - name: Install Python
+        run: uv python install 3.13
+      - name: Sync locked environment
+        run: uv sync --locked
+      - name: Build distributions
+        run: uv build
+      - name: Run Python tests
+        env:
+          DOCLING_SERVE_MPS_DIST_DIR: dist
+        run: uv run python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Run source wrapper tests
+        run: zsh tests/test_service.sh
+      - name: Check distribution metadata
+        run: uvx twine check dist/*

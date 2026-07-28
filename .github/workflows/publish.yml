@@ -1,0 +1,68 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.9.3"
+          enable-cache: true
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          uv run --no-project python - <<'PYTHON'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          expected_tag = f"v{version}"
+          release_tag = os.environ["RELEASE_TAG"]
+          if release_tag != expected_tag:
+              raise SystemExit(f"release tag {release_tag!r} must equal {expected_tag!r}")
+          PYTHON
+      - name: Install Python
+        run: uv python install 3.13
+      - name: Sync locked environment
+        run: uv sync --locked
+      - name: Build distributions
+        run: uv build
+      - name: Run Python tests
+        env:
+          DOCLING_SERVE_MPS_DIST_DIR: dist
+        run: uv run python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Run source wrapper tests
+        run: zsh tests/test_service.sh
+      - name: Check distribution metadata
+        run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/docling-serve-mps
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish distributions to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
