@@ -48,24 +48,30 @@ defaults to token-level output, and has an unresolved repeated-call memory issue
 - `pyproject.toml`: add Docling's OCRMac feature extra while retaining the UI.
 - `uv.lock`: lock OCRMac and its macOS framework dependencies.
 - `service.env`: define the custom `auto` OCR preset.
+- `service.sh`: before starting, verify the locked environment provides both
+   Docling Serve and OCRMac; run `uv sync --locked` automatically when the
+   environment is absent or incomplete.
 - `README.md`: document effective OCR behavior, language order, and scope.
 
 No proxy, request rewriting, monkey patch, fallback engine, or RAG-side setting
-is introduced.
+is introduced. A fresh clone can run `./service.sh start` without a separate
+OCRMac installation command.
 
 ## Validation
 
 1. Verify the environment setting parses and the manager registry resolves
    `auto` to `OcrMacOptions` with Vision, accurate recognition, and
    `zh-Hans,en-US`.
-2. Verify a LightRAG-equivalent request keeps full-page OCR enabled after preset
+2. Verify the start path installs a missing OCRMac dependency only through
+   `uv sync --locked`, while a complete environment skips synchronization.
+3. Verify a LightRAG-equivalent request keeps full-page OCR enabled after preset
    resolution.
-3. Restart the background service and confirm `/health` and `/ui/` respond.
-4. Convert a small generated bilingual PDF through the same async Docling HTTP
+4. Restart the background service and confirm `/health` and `/ui/` respond.
+5. Convert a small generated bilingual PDF through the same async Docling HTTP
    endpoints used by LightRAG.
-5. Confirm logs and resolved options identify OCRMac, and exported JSON/Markdown
+6. Confirm logs and resolved options identify OCRMac, and exported JSON/Markdown
    contain both Chinese and English text.
-6. Verify the service remains loopback-only, remote services and external
+7. Verify the service remains loopback-only, remote services and external
    plugins remain disabled, and the repository contains no credentials or AI
    attribution.
 
