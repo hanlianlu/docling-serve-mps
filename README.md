@@ -1,23 +1,19 @@
 # Docling Serve for Apple Silicon
 
-An independent, uv-managed Docling Serve installation tuned for Apple Silicon.
-It runs Docling natively on macOS so PyTorch-backed pipeline stages can use
-Metal Performance Shaders (MPS), while OCR uses Apple's native Vision framework
-and Dockerized clients connect through `host.docker.internal`.
+A native, background Docling Serve sidecar for Apple Silicon. PyTorch-backed
+Docling pipeline stages use Metal Performance Shaders (MPS), OCR uses Apple's
+Vision framework through OCRMac, and Dockerized clients connect through
+`host.docker.internal`.
 
 ## Runtime
 
-- Python 3.13 managed by uv
 - PyTorch-backed Docling stages use MPS with CPU fallback for unsupported operators
 - OCRMac uses Apple Vision directly; it does not run through PyTorch or MPS
+- Native accurate OCR for Simplified Chinese with English companion recognition
 - One converter worker to avoid duplicated model memory and MPS contention
 - Eight CPU threads for pipeline stages that remain CPU-bound
-- Loopback-only listener on port 5001
-- Docling ML models loaded at startup and cached by Docling/Hugging Face;
-  Apple Vision OCR is provided by macOS
-- Native Apple Vision OCR in accurate Simplified Chinese and English mode
-- Local Docling UI enabled on the same loopback-only service
-- External plugins and remote model services disabled
+- Loopback-only API and UI on port 5001
+- Remote model services and external plugins disabled
 
 ## Requirements
 
@@ -27,97 +23,102 @@ and Dockerized clients connect through `host.docker.internal`.
 
 ## Install
 
+Install the application from PyPI:
+
+```bash
+uv tool install docling-serve-mps
+```
+
+Start the background sidecar:
+
+```bash
+docling-serve-mps start
+```
+
+`start` validates Apple Silicon and MPS support, starts Docling Serve when
+needed, waits for the health endpoint, and prints the API, UI, and log
+locations. Repeating it is safe and reports the existing managed process.
+
+Open the local UI at:
+
+```text
+http://127.0.0.1:5001/ui/
+```
+
+Stop the sidecar:
+
+```bash
+docling-serve-mps stop
+```
+
+The service does not start automatically after a macOS reboot. Run `start`
+when needed.
+
+## Source Checkout
+
+For development or locked source deployment:
+
 ```bash
 git clone https://github.com/hanlianlu/docling-serve-mps.git
 cd docling-serve-mps
 ./service.sh start
 ```
 
-`start` checks that `.venv` matches `uv.lock` and provides both Docling Serve
-and OCRMac. It automatically runs `uv sync --locked` only when the environment
-is missing or incomplete. No separate OCRMac installation command is needed.
-
-Prepare or repair the locked environment without starting the service:
-
-```bash
-./service.sh prepare
-```
-
-Verify MPS after preparation:
-
-```bash
-uv run python -c 'import torch; print(torch.backends.mps.is_available())'
-```
-
-The result should be `True`.
-
-## Common Workflow
-
-Start the service in the background:
-
-```bash
-cd ~/Github/docling-serve-mps
-./service.sh start
-```
-
-Check the process and HTTP health endpoint:
-
-```bash
-./service.sh status
-```
-
-Follow the service log:
-
-```bash
-./service.sh logs
-```
-
-Press `Ctrl+C` to stop following the log. This does not stop Docling Serve.
-
-Stop the background service:
+The wrapper checks `.venv` against `uv.lock`, repairs it with
+`uv sync --locked` only when necessary, and delegates to the same packaged
+CLI. Its accepted commands are also exactly `start` and `stop`:
 
 ```bash
 ./service.sh stop
 ```
 
-Restart after changing `service.env`:
+## Configuration
+
+The built-in defaults target an M4 Max with 48 GB unified memory while leaving
+capacity for DLightRAG and macOS:
+
+```dotenv
+DOCLING_DEVICE=mps
+PYTORCH_ENABLE_MPS_FALLBACK=1
+DOCLING_NUM_THREADS=8
+DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1
+DOCLING_SERVE_OPTIONS_CACHE_SIZE=2
+DOCLING_HOST=127.0.0.1
+DOCLING_PORT=5001
+DOCLING_SERVE_ENABLE_UI=true
+DOCLING_SERVE_ENABLE_REMOTE_SERVICES=false
+DOCLING_SERVE_ALLOW_EXTERNAL_PLUGINS=false
+DOCLING_SERVE_CUSTOM_OCR_PRESETS='{"auto":{"kind":"ocrmac","framework":"vision","recognition":"accurate","lang":["zh-Hans","en-US"]}}'
+```
+
+Set an environment variable before `start` to override a default. Source
+checkouts can place overrides in `service.env`; installed tools can export
+them in the calling shell. For example:
 
 ```bash
-./service.sh stop
-./service.sh start
-./service.sh status
+export DOCLING_PORT=5101
+docling-serve-mps start
 ```
 
-The service does not start automatically after a macOS reboot. Run
-`./service.sh start` when needed.
-
-Open the local Docling UI after the health check passes:
+Use `DOCLING_SERVE_MPS_STATE_DIR` to override the state directory. The default
+is:
 
 ```text
-http://127.0.0.1:5001/ui
+~/Library/Application Support/docling-serve-mps/
 ```
 
-The UI is not separately authenticated, so the service remains bound to
-`127.0.0.1`. Do not change `DOCLING_HOST` to `0.0.0.0` unless an authenticated
-reverse proxy protects the service.
+It contains the lifecycle lock, PID record, persistent log, and Docling scratch
+directory. The PID record is atomic, and `stop` verifies process identity
+before sending SIGTERM.
 
-## Files
-
-```text
-service.env                  Runtime tuning
-service.sh                   prepare/start/stop/status/logs controller
-run/docling-serve.pid        Background process ID
-run/docling-serve.log        Persistent service log
-run/scratch/                 Docling Serve temporary results
-```
-
-`run/` and `.venv/` are ignored by Git.
+Keep the service on `127.0.0.1`. The UI is not separately authenticated, so do
+not bind to `0.0.0.0` unless an authenticated reverse proxy protects it.
 
 ## OCR
 
 The service replaces Docling Serve's built-in `auto` OCR preset through its
-official custom preset registry. Clients can keep sending `ocr_preset=auto`; the
-effective OCR configuration is:
+official custom preset registry. Clients can keep sending `ocr_preset=auto`;
+the effective configuration is:
 
 ```text
 engine: OCRMac
@@ -128,12 +129,12 @@ languages: zh-Hans, en-US
 
 The language order prioritizes Simplified Chinese, with English as Apple's
 supported companion language. The caller's `force_ocr` value remains
-authoritative; LightRAG currently sends `force_ocr=true`, so its conversions
+authoritative. LightRAG currently sends `force_ocr=true`, so its conversions
 continue to use full-page OCR.
 
-This service-side change applies only when a document reaches Docling for a new
-parse. It does not migrate or reprocess existing DLightRAG documents, chunks,
-vectors, knowledge graphs, or parser caches.
+This service-side setting applies only when a document reaches Docling for a
+new parse. It does not migrate or reprocess existing DLightRAG documents,
+chunks, vectors, knowledge graphs, or parser caches.
 
 ## DLightRAG Integration
 
@@ -146,17 +147,9 @@ parser_sidecars:
 ```
 
 Remove or comment out the active MinerU block. If both MinerU and Docling are
-configured, DLightRAG prioritizes MinerU.
-
-Start DLightRAG normally:
-
-```bash
-docker compose up -d
-```
-
-Do not enable DLightRAG's CPU Docling Compose profile at the same time. This
-native service already owns port 5001. Its PyTorch-backed Docling stages use
-MPS, and its OCR stage uses Apple Vision.
+configured, DLightRAG prioritizes MinerU. Do not enable DLightRAG's CPU Docling
+Compose profile at the same time because this native service already owns port
+5001.
 
 Verify connectivity from the DLightRAG container:
 
@@ -165,31 +158,18 @@ docker compose exec -T dlightrag-api python -c \
   "import urllib.request; print(urllib.request.urlopen('http://host.docker.internal:5001/health').read().decode())"
 ```
 
-## Tuning
-
-The defaults in `service.env` target an M4 Max with 48 GB unified memory while
-leaving capacity for DLightRAG and macOS:
-
-```dotenv
-DOCLING_DEVICE=mps
-PYTORCH_ENABLE_MPS_FALLBACK=1
-DOCLING_NUM_THREADS=8
-DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1
-DOCLING_SERVE_OPTIONS_CACHE_SIZE=2
-DOCLING_SERVE_ENABLE_UI=true
-DOCLING_SERVE_CUSTOM_OCR_PRESETS='{"auto":{"kind":"ocrmac","framework":"vision","recognition":"accurate","lang":["zh-Hans","en-US"]}}'
-```
-
-`DOCLING_DEVICE` and `PYTORCH_ENABLE_MPS_FALLBACK` apply to Docling's
-PyTorch-backed stages, not OCRMac. OCRMac delegates recognition to Apple Vision
-through macOS.
-
-Keep one converter worker unless benchmarks show a benefit from concurrency.
-Multiple workers can duplicate model memory and contend for the same MPS device.
-
 ## Upgrade
 
-Stop the service, update dependencies with uv, and restart:
+Upgrade the installed application, then restart it:
+
+```bash
+docling-serve-mps stop
+uv tool upgrade docling-serve-mps
+docling-serve-mps start
+```
+
+For a source checkout, explicitly update and review the lockfile before
+restarting:
 
 ```bash
 ./service.sh stop
@@ -197,12 +177,7 @@ uv lock --upgrade-package docling-serve \
   --upgrade-package docling-slim \
   --upgrade-package ocrmac
 ./service.sh start
-./service.sh status
 ```
-
-The lockfile keeps installations reproducible until an explicit upgrade.
-`start` detects the changed lockfile and synchronizes the environment before
-launching the service.
 
 ## Troubleshooting
 
@@ -212,21 +187,16 @@ Check health directly:
 curl http://127.0.0.1:5001/health
 ```
 
-Confirm Docling's PyTorch-backed stages selected MPS:
-
-```bash
-grep "Accelerator device" run/docling-serve.log | tail
-```
-
 Check whether another process owns port 5001:
 
 ```bash
 lsof -nP -iTCP:5001 -sTCP:LISTEN
 ```
 
-Initial startup can take longer while model artifacts are downloaded and
-loaded. `./service.sh status` may report that the process is alive but health is
-not ready during this period; follow `./service.sh logs` for progress.
+The `start` output prints the persistent log path. Initial startup can take
+longer while model artifacts are downloaded and loaded. Docling logs the
+selected accelerator as `mps`; OCRMac delegates recognition to Apple Vision
+independently.
 
 ## License
 

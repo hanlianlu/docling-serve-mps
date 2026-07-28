@@ -40,6 +40,7 @@ class DistributionContractTest(unittest.TestCase):
 
     def test_sdist_contains_source_workflow_and_tests(self) -> None:
         expected_suffixes = {
+            "/CHANGELOG.md",
             "/LICENSE",
             "/README.md",
             "/pyproject.toml",
