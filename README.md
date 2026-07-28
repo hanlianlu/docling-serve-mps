@@ -12,6 +12,7 @@ It runs Docling natively on macOS so PyTorch can use Metal Performance Shaders
 - Eight CPU threads for pipeline stages that remain CPU-bound
 - Loopback-only listener on port 5001
 - Models loaded at startup and cached by Docling/Hugging Face
+- Native Apple Vision OCR in accurate Simplified Chinese and English mode
 - Local Docling UI enabled on the same loopback-only service
 - External plugins and remote model services disabled
 
@@ -26,10 +27,20 @@ It runs Docling natively on macOS so PyTorch can use Metal Performance Shaders
 ```bash
 git clone https://github.com/hanlianlu/docling-serve-mps.git
 cd docling-serve-mps
-uv sync
+./service.sh start
 ```
 
-Verify MPS before starting the service:
+`start` checks that `.venv` matches `uv.lock` and provides both Docling Serve
+and OCRMac. It automatically runs `uv sync --locked` only when the environment
+is missing or incomplete. No separate OCRMac installation command is needed.
+
+Prepare or repair the locked environment without starting the service:
+
+```bash
+./service.sh prepare
+```
+
+Verify MPS after preparation:
 
 ```bash
 uv run python -c 'import torch; print(torch.backends.mps.is_available())'
@@ -91,13 +102,35 @@ reverse proxy protects the service.
 
 ```text
 service.env                  Runtime tuning
-service.sh                   start/stop/status/logs controller
+service.sh                   prepare/start/stop/status/logs controller
 run/docling-serve.pid        Background process ID
 run/docling-serve.log        Persistent service log
 run/scratch/                 Docling Serve temporary results
 ```
 
 `run/` and `.venv/` are ignored by Git.
+
+## OCR
+
+The service replaces Docling Serve's built-in `auto` OCR preset through its
+official custom preset registry. Clients can keep sending `ocr_preset=auto`; the
+effective OCR configuration is:
+
+```text
+engine: OCRMac
+framework: Apple Vision
+recognition: accurate
+languages: zh-Hans, en-US
+```
+
+The language order prioritizes Simplified Chinese, with English as Apple's
+supported companion language. The caller's `force_ocr` value remains
+authoritative; LightRAG currently sends `force_ocr=true`, so its conversions
+continue to use full-page OCR.
+
+This service-side change applies only when a document reaches Docling for a new
+parse. It does not migrate or reprocess existing DLightRAG documents, chunks,
+vectors, knowledge graphs, or parser caches.
 
 ## DLightRAG Integration
 
@@ -140,6 +173,7 @@ DOCLING_NUM_THREADS=8
 DOCLING_SERVE_ENG_LOC_NUM_WORKERS=1
 DOCLING_SERVE_OPTIONS_CACHE_SIZE=2
 DOCLING_SERVE_ENABLE_UI=true
+DOCLING_SERVE_CUSTOM_OCR_PRESETS='{"auto":{"kind":"ocrmac","framework":"vision","recognition":"accurate","lang":["zh-Hans","en-US"]}}'
 ```
 
 Keep one converter worker unless benchmarks show a benefit from concurrency.
@@ -152,12 +186,13 @@ Stop the service, update dependencies with uv, and restart:
 ```bash
 ./service.sh stop
 uv lock --upgrade-package docling-serve
-uv sync
 ./service.sh start
 ./service.sh status
 ```
 
 The lockfile keeps installations reproducible until an explicit upgrade.
+`start` detects the changed lockfile and synchronizes the environment before
+launching the service.
 
 ## Troubleshooting
 
