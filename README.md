@@ -1,17 +1,20 @@
 # Docling Serve for Apple Silicon
 
 An independent, uv-managed Docling Serve installation tuned for Apple Silicon.
-It runs Docling natively on macOS so PyTorch can use Metal Performance Shaders
-(MPS), while Dockerized clients connect through `host.docker.internal`.
+It runs Docling natively on macOS so PyTorch-backed pipeline stages can use
+Metal Performance Shaders (MPS), while OCR uses Apple's native Vision framework
+and Dockerized clients connect through `host.docker.internal`.
 
 ## Runtime
 
 - Python 3.13 managed by uv
-- Native PyTorch MPS with CPU fallback for unsupported operators
+- PyTorch-backed Docling stages use MPS with CPU fallback for unsupported operators
+- OCRMac uses Apple Vision directly; it does not run through PyTorch or MPS
 - One converter worker to avoid duplicated model memory and MPS contention
 - Eight CPU threads for pipeline stages that remain CPU-bound
 - Loopback-only listener on port 5001
-- Models loaded at startup and cached by Docling/Hugging Face
+- Docling ML models loaded at startup and cached by Docling/Hugging Face;
+  Apple Vision OCR is provided by macOS
 - Native Apple Vision OCR in accurate Simplified Chinese and English mode
 - Local Docling UI enabled on the same loopback-only service
 - External plugins and remote model services disabled
@@ -152,7 +155,8 @@ docker compose up -d
 ```
 
 Do not enable DLightRAG's CPU Docling Compose profile at the same time. This
-native service already owns port 5001 and uses MPS.
+native service already owns port 5001. Its PyTorch-backed Docling stages use
+MPS, and its OCR stage uses Apple Vision.
 
 Verify connectivity from the DLightRAG container:
 
@@ -176,6 +180,10 @@ DOCLING_SERVE_ENABLE_UI=true
 DOCLING_SERVE_CUSTOM_OCR_PRESETS='{"auto":{"kind":"ocrmac","framework":"vision","recognition":"accurate","lang":["zh-Hans","en-US"]}}'
 ```
 
+`DOCLING_DEVICE` and `PYTORCH_ENABLE_MPS_FALLBACK` apply to Docling's
+PyTorch-backed stages, not OCRMac. OCRMac delegates recognition to Apple Vision
+through macOS.
+
 Keep one converter worker unless benchmarks show a benefit from concurrency.
 Multiple workers can duplicate model memory and contend for the same MPS device.
 
@@ -185,7 +193,9 @@ Stop the service, update dependencies with uv, and restart:
 
 ```bash
 ./service.sh stop
-uv lock --upgrade-package docling-serve
+uv lock --upgrade-package docling-serve \
+  --upgrade-package docling-slim \
+  --upgrade-package ocrmac
 ./service.sh start
 ./service.sh status
 ```
@@ -202,7 +212,7 @@ Check health directly:
 curl http://127.0.0.1:5001/health
 ```
 
-Confirm the runtime selected MPS:
+Confirm Docling's PyTorch-backed stages selected MPS:
 
 ```bash
 grep "Accelerator device" run/docling-serve.log | tail
