@@ -44,6 +44,10 @@ DEFAULT_ENVIRONMENT = {
     "DOCLING_SERVE_LOG_LEVEL": "INFO",
     "DOCLING_SERVE_LOG_FORMAT": "text",
     "DOCLING_SERVE_CUSTOM_OCR_PRESETS": OCR_PRESET,
+    # The stock codeformulav2 preset ships no MLX engine and aborts on MPS.
+    # Both the `default` alias and the explicit id resolve to the MLX model.
+    "DOCLING_SERVE_DEFAULT_CODE_FORMULA_PRESET": "granite_docling",
+    "DOCLING_SERVE_ALLOWED_CODE_FORMULA_PRESETS": '["default","granite_docling"]',
 }
 
 

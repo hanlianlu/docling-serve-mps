@@ -56,5 +56,45 @@ print(json.dumps({
         )
 
 
+    def test_both_code_formula_preset_forms_resolve_to_the_mlx_model(self) -> None:
+        environment = build_child_environment(
+            ServicePaths(Path("/tmp/docling-serve-mps-test")), source=os.environ
+        )
+        script = """
+import json
+import warnings
+from docling.datamodel.service.options import ConvertDocumentsOptions
+from docling_jobkit.convert.manager import DoclingConverterManager
+from docling_serve.orchestrator_factory import _build_cm_config
+
+manager = DoclingConverterManager(_build_cm_config())
+resolved = {}
+for requested in ("default", "granite_docling"):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        request = ConvertDocumentsOptions(code_formula_preset=requested)
+    spec = manager._parse_code_formula_options(request).model_spec
+    resolved[requested] = {
+        "repo_id": spec.default_repo_id,
+        "engines": sorted(e.value for e in (spec.engine_overrides or {})),
+    }
+print(json.dumps(resolved))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            check=True,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        resolved = json.loads(result.stdout)
+
+        self.assertEqual(resolved["default"], resolved["granite_docling"])
+        self.assertEqual(
+            resolved["default"]["repo_id"], "ibm-granite/granite-docling-258M"
+        )
+        self.assertIn("mlx", resolved["default"]["engines"])
+
+
 if __name__ == "__main__":
     unittest.main()

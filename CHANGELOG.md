@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Resolve the code/formula preset to `granite_docling`, the only shipped preset
+  with an MLX engine. Docling Serve's stock `default_code_formula_preset` names
+  a preset that does not exist, so any client sending a preset fails outright.
+- Allow-list `granite_docling` so clients may request it by name as well as
+  through the `default` alias.
+
 ## 0.1.0
 
 - Package native Docling Serve as an installable Apple Silicon application.
