@@ -7,6 +7,8 @@
   a preset that does not exist, so any client sending a preset fails outright.
 - Allow-list `granite_docling` so clients may request it by name as well as
   through the `default` alias.
+- Raise the dependency floors to docling-serve 1.29.0 and docling-slim 2.118.0
+  and refresh the lockfile.
 
 ## 0.1.0
 
