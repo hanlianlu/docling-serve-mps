@@ -327,14 +327,17 @@ def stop_service(
                 f"Refusing to stop unrelated process {pid}; removed stale state."
             )
 
-        os.kill(pid, signal.SIGTERM)
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            if process_command(pid) is None:
-                resolved_paths.pid.unlink(missing_ok=True)
-                return f"Stopped Docling Serve (PID {pid})."
-            time.sleep(0.1)
-        raise ServiceError(f"Docling Serve PID {pid} did not stop after SIGTERM.")
+        for signal_number in (signal.SIGTERM, signal.SIGKILL):
+            os.kill(pid, signal_number)
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline:
+                if process_command(pid) is None:
+                    resolved_paths.pid.unlink(missing_ok=True)
+                    return f"Stopped Docling Serve (PID {pid})."
+                time.sleep(0.1)
+        # SIGKILL is not deliverable to a process this one can signal, so the
+        # PID record stays: it is the only handle left for manual recovery.
+        raise ServiceError(f"Docling Serve PID {pid} survived SIGTERM and SIGKILL.")
 
 
 def build_parser() -> argparse.ArgumentParser:

@@ -154,6 +154,36 @@ class CliContractTest(unittest.TestCase):
                 process.terminate()
                 process.wait(timeout=5)
 
+    def test_stop_escalates_to_sigkill_when_sigterm_is_ignored(self) -> None:
+        marker = cli.COMMAND_MARKER
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN);"
+                " time.sleep(30)",
+                marker,
+            ]
+        )
+        try:
+            with tempfile.TemporaryDirectory() as temporary_directory:
+                paths = cli.ServicePaths(Path(temporary_directory))
+                paths.root.mkdir(parents=True, exist_ok=True)
+                paths.pid.write_text(
+                    json.dumps({"pid": process.pid, "command_marker": marker}),
+                    encoding="utf-8",
+                )
+
+                result = cli.stop_service(paths=paths, timeout=2.0)
+
+                self.assertIn("Stopped", result)
+                self.assertFalse(paths.pid.exists())
+                self.assertIsNotNone(process.poll())
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait(timeout=5)
+
 
 if __name__ == "__main__":
     unittest.main()
