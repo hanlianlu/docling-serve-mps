@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+
+- Escalate `stop` to `SIGKILL` when the service ignores `SIGTERM`, so a wedged
+  server can no longer strand its PID file and block the next `start`.
+
 ## 0.2.0
 
 - Resolve the code/formula preset to `granite_docling`, the only shipped preset
