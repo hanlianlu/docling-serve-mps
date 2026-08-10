@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+- Raise the dependency floors to docling-serve 1.30.0 and docling-slim 2.118.1,
+  which pull in docling-jobkit 3.3.x. Only that jobkit maps the service API's
+  `do_pdf_heading_hierarchy` onto the pipeline, so before this release the field
+  was accepted and silently dropped, leaving every PDF heading at level 1.
+  jobkit also turns on `generate_parsed_pages` itself when the request asks for
+  font-style inference, so no wrapper setting is needed to make it work.
+
 ## 0.2.1
 
 - Escalate `stop` to `SIGKILL` when the service ignores `SIGTERM`, so a wedged
