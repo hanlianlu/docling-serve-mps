@@ -176,9 +176,7 @@ restarting:
 
 ```bash
 ./service.sh stop
-uv lock --upgrade-package docling-serve \
-  --upgrade-package docling-slim \
-  --upgrade-package ocrmac
+uv lock --upgrade
 ./service.sh start
 ```
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docling-serve-mps"
-version = "0.3.0"
+version = "0.4.0"
 description = "Native MPS deployment wrapper for Docling Serve on Apple Silicon"
 readme = "README.md"
 requires-python = ">=3.13"
@@ -20,8 +20,8 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
 ]
 dependencies = [
-    "docling-serve[ui]>=1.30.0",
-    "docling-slim[feat-ocr-mac]>=2.118.1",
+    "docling-serve[ui]>=1.31.0",
+    "docling-slim[feat-ocr-mac]>=2.121.0",
 ]
 
 [project.scripts]

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Raise the unbounded dependency floors to docling-serve 1.31.0 and
+  docling-slim 2.121.0. This includes docling-jobkit 3.4.0, improved multipart
+  validation errors, Apple Pages input, corrected rotated-PDF coordinates,
+  and MLX bfloat16 log-probability handling.
+- Keep the MPS code/formula preset workaround: upstream still defaults to the
+  nonexistent `default` preset, and `codeformulav2` still has no MLX engine.
+
 ## 0.3.0
 
 - Raise the dependency floors to docling-serve 1.30.0 and docling-slim 2.118.1,
