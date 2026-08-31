@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.5.0
+
+- Raise the docling-slim floor to 2.124.0 and refresh the locked Apple Silicon
+  runtime, including docling-ibm-models 4.0.0 and docling-parse 7.16.0. Keep the
+  already-current docling-serve 1.31.0, docling-jobkit 3.4.0, docling-core
+  2.92.0, and OCRMac 1.0.1 releases aligned. Retain mlx-vlm 0.6.4 as the newest
+  release compatible with Docling's macOS Transformers constraint; newer
+  mlx-vlm releases require Transformers 5.14 or later while Docling 2.124.0
+  requires a version below 5.9.
+- Preserve the MPS code/formula preset workaround. Granite Docling's cached MLX
+  model already matches the latest upstream revision, while Docling 2.124.0
+  still hardcodes the code/formula generation limit, so this dependency refresh
+  does not claim to fix runaway formula generation.
+
 ## 0.4.0
 
 - Raise the unbounded dependency floors to docling-serve 1.31.0 and
