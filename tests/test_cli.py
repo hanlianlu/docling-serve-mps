@@ -32,6 +32,9 @@ class CliContractTest(unittest.TestCase):
         self.assertEqual(environment["DOCLING_SERVE_ALLOW_EXTERNAL_PLUGINS"], "false")
         self.assertIn('"kind":"ocrmac"', environment["DOCLING_SERVE_CUSTOM_OCR_PRESETS"])
         self.assertIn('"lang":["zh-Hans","en-US"]', environment["DOCLING_SERVE_CUSTOM_OCR_PRESETS"])
+        # Referenced-image export must not be capped at docling-core's 20 MiB
+        # default; one large photograph would abort the whole conversion.
+        self.assertEqual(environment["DOCLINGCORE_MAX_IMAGE_DECODED_SIZE"], "67108864")
 
     def test_explicit_environment_overrides_defaults(self) -> None:
         with patch.dict(os.environ, {"DOCLING_PORT": "5101"}, clear=True):

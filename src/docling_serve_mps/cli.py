@@ -46,8 +46,17 @@ DEFAULT_ENVIRONMENT = {
     "DOCLING_SERVE_CUSTOM_OCR_PRESETS": OCR_PRESET,
     # The stock codeformulav2 preset ships no MLX engine and aborts on MPS.
     # Both the `default` alias and the explicit id resolve to the MLX model.
+    # A request that omits `code_formula_preset` entirely still falls back to
+    # docling's own pipeline default (codeformulav2), which cannot run on MPS.
     "DOCLING_SERVE_DEFAULT_CODE_FORMULA_PRESET": "granite_docling",
     "DOCLING_SERVE_ALLOWED_CODE_FORMULA_PRESETS": '["default","granite_docling"]',
+    # docling-core refuses to materialize a referenced image whose decoded bytes
+    # exceed 20 MiB (CoreSettings.max_image_decoded_size). Clients that export
+    # with `image_export_mode=referenced` -- LightRAG always does -- hit that cap
+    # while writing the result bundle, so one legitimately large photograph
+    # aborts the whole conversion at export time. 64 MiB keeps that ceiling
+    # meaningful while remaining far below this class of machine's memory.
+    "DOCLINGCORE_MAX_IMAGE_DECODED_SIZE": "67108864",
 }
 
 

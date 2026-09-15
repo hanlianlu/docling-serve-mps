@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.1
+
+- Raise the decoded-image ceiling to 64 MiB through
+  `DOCLINGCORE_MAX_IMAGE_DECODED_SIZE`. docling-core refuses to materialize a
+  referenced image above 20 MiB, so a client exporting with
+  `image_export_mode=referenced` (LightRAG always does) aborts the whole
+  conversion at export time when a single large photograph exceeds it.
+
 ## 0.5.0
 
 - Raise the docling-slim floor to 2.124.0 and refresh the locked Apple Silicon
