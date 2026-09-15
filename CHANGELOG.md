@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.6.0
+
+- Add `docling-serve-mps run`: exec Docling Serve in the foreground with the
+  packaged defaults, for process supervisors (launchd, systemd) that own the
+  service lifecycle. It neither takes the lifecycle lock nor writes a pid
+  record, so a supervisor unit can name one command instead of duplicating
+  every default in its own environment.
+
 ## 0.5.1
 
 - Raise the decoded-image ceiling to 64 MiB through

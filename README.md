@@ -75,6 +75,20 @@ CLI. Its accepted commands are also exactly `start` and `stop`:
 ./service.sh stop
 ```
 
+## Process supervisors
+
+`start` daemonizes, so it does not fit launchd/systemd — those want the service
+in the foreground and own its lifecycle themselves. Use `run`:
+
+```bash
+docling-serve-mps run
+```
+
+`run` applies the same packaged defaults and execs Docling Serve in place. It
+takes no lifecycle lock and writes no pid record, so `stop` is not the way to
+stop a supervised service (the supervisor would restart it) — unload the unit
+instead.
+
 ## Configuration
 
 The built-in defaults target an M4 Max with 48 GB unified memory while leaving

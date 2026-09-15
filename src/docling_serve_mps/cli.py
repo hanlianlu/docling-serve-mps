@@ -1,4 +1,8 @@
-"""Minimal background lifecycle for the Docling Serve MPS sidecar."""
+"""Lifecycle for the Docling Serve MPS sidecar.
+
+``start``/``stop`` manage a detached background service; ``run`` execs the
+server in the foreground so a process supervisor (launchd, systemd) can own it.
+"""
 
 from __future__ import annotations
 
@@ -290,6 +294,35 @@ def start_service(
         return _started_message(resolved_paths, environment, child.pid)
 
 
+def run_service(
+    *,
+    paths: ServicePaths | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> None:
+    """Replace this process with a foreground Docling Serve.
+
+    For process supervisors (launchd, systemd) that own the lifecycle
+    themselves: the packaged defaults are applied here, so the supervisor unit
+    only has to name this command. Nothing is daemonized, no lifecycle lock is
+    taken and no pid record is written — ``stop`` intentionally does not apply,
+    because the supervisor would restart the service anyway. Returns only if
+    the exec fails, which raises :class:`ServiceError`.
+    """
+    validate_runtime()
+    resolved_paths = paths or ServicePaths.from_environment()
+    resolved_paths.root.mkdir(parents=True, exist_ok=True)
+    resolved_paths.scratch.mkdir(parents=True, exist_ok=True)
+    child_environment = dict(
+        build_child_environment(resolved_paths) if environment is None else environment
+    )
+    command = _child_command(child_environment)
+    os.chdir(resolved_paths.root)
+    try:
+        os.execvpe(command[0], command, child_environment)
+    except OSError as exc:  # pragma: no cover - exec only fails on a broken install
+        raise ServiceError(f"could not exec Docling Serve: {exc}") from exc
+
+
 def _started_message(
     paths: ServicePaths,
     environment: Mapping[str, str],
@@ -357,13 +390,28 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("start", help="Start the background service.")
     commands.add_parser("stop", help="Stop the background service.")
+    commands.add_parser(
+        "run",
+        help=(
+            "Run Docling Serve in the foreground with the packaged defaults, for "
+            "process supervisors that own the lifecycle."
+        ),
+    )
     return parser
 
 
 def run_cli(argv: Sequence[str] | None = None) -> int:
     arguments = build_parser().parse_args(argv)
     try:
-        message = start_service() if arguments.command == "start" else stop_service()
+        if arguments.command == "start":
+            message = start_service()
+        elif arguments.command == "stop":
+            message = stop_service()
+        else:
+            # Foreground mode execs the server; reaching this line means the
+            # exec never happened.
+            run_service()
+            return 0
     except ServiceError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

@@ -11,7 +11,7 @@ from docling_serve_mps import cli
 
 
 class CliContractTest(unittest.TestCase):
-    def test_parser_exposes_only_start_and_stop(self) -> None:
+    def test_parser_exposes_start_stop_and_run(self) -> None:
         parser = cli.build_parser()
         subparsers = next(
             action
@@ -19,7 +19,7 @@ class CliContractTest(unittest.TestCase):
             if action.__class__.__name__ == "_SubParsersAction"
         )
 
-        self.assertEqual(set(subparsers.choices), {"start", "stop"})
+        self.assertEqual(set(subparsers.choices), {"start", "stop", "run"})
 
     def test_child_environment_has_secure_mps_ocr_defaults(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
@@ -187,6 +187,51 @@ class CliContractTest(unittest.TestCase):
                 process.kill()
                 process.wait(timeout=5)
 
+
+
+
+    def test_run_execs_child_with_packaged_defaults_and_no_pid_record(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            paths = cli.ServicePaths(Path(temporary_directory))
+            with (
+                patch.dict(os.environ, {}, clear=True),
+                patch.object(cli, "validate_runtime"),
+                patch.object(cli.os, "chdir"),
+                patch.object(cli.os, "execvpe") as execvpe,
+            ):
+                cli.run_service(paths=paths)
+
+        program, command, environment = execvpe.call_args.args
+        self.assertEqual(program, sys.executable)
+        self.assertEqual(
+            command[4:], ["--host", "127.0.0.1", "--port", "5001", "--workers", "1"]
+        )
+        self.assertEqual(environment["DOCLING_DEVICE"], "mps")
+        self.assertEqual(environment["DOCLINGCORE_MAX_IMAGE_DECODED_SIZE"], "67108864")
+        self.assertEqual(environment["DOCLING_SERVE_SCRATCH_PATH"], str(paths.scratch))
+        self.assertIn('"kind":"ocrmac"', environment["DOCLING_SERVE_CUSTOM_OCR_PRESETS"])
+        self.assertFalse(paths.pid.exists())
+
+    def test_run_uses_the_supplied_environment_verbatim(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            paths = cli.ServicePaths(Path(temporary_directory))
+            supplied = {"DOCLING_HOST": "127.0.0.1", "DOCLING_PORT": "5101", "UVICORN_WORKERS": "2"}
+            with (
+                patch.object(cli, "validate_runtime"),
+                patch.object(cli.os, "chdir"),
+                patch.object(cli.os, "execvpe") as execvpe,
+            ):
+                cli.run_service(paths=paths, environment=supplied)
+
+        _, command, environment = execvpe.call_args.args
+        self.assertEqual(environment, supplied)
+        self.assertEqual(command[4:], ["--host", "127.0.0.1", "--port", "5101", "--workers", "2"])
+
+    def test_run_cli_foreground_mode_uses_run_service(self) -> None:
+        with patch.object(cli, "run_service") as run_service:
+            self.assertEqual(cli.run_cli(["run"]), 0)
+
+        run_service.assert_called_once_with()
 
 if __name__ == "__main__":
     unittest.main()
