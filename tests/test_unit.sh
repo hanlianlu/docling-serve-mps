@@ -2,7 +2,9 @@
 set -euo pipefail
 
 # Exercises the launchd unit manager without touching the real launchd session:
-# PATH supplies a recording launchctl, and HOME points at a temporary directory.
+# PATH supplies a stateful recording launchctl, and HOME points at a temporary
+# directory. The fake tracks loaded state in a marker file, so bootstrap,
+# bootout, `print` and the manager's polling behave like the real tool's.
 
 ROOT=${0:A:h:h}
 TMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/docling-unit-test.XXXXXX")
@@ -10,6 +12,9 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 
 LABEL=com.orliantra.docling-mps
 DOMAIN="gui/$(id -u)"
+# The manager polls launchd between teardown and load; the failure paths would
+# otherwise wait out the real interval.
+export DOCLING_SERVE_MPS_UNIT_POLL_SECONDS=0
 
 prepare_fixture() {
   local name=$1
@@ -22,8 +27,28 @@ prepare_fixture() {
 set -euo pipefail
 print -r -- "$*" >>"$LAUNCHCTL_LOG"
 case "$1" in
+  bootstrap)
+    # Models the teardown race that follows bootout, and a unit launchd refuses.
+    if [[ "${FAKE_BOOTSTRAP_ALWAYS_FAIL:-0}" == "1" ]]; then
+      print -u2 "Bootstrap failed: 5: Input/output error"
+      exit 5
+    fi
+    if [[ -n "${FAKE_BOOTSTRAP_FAIL_TIMES:-}" ]]; then
+      attempts=0
+      [[ -f "$FAKE_COUNTER" ]] && attempts=$(<"$FAKE_COUNTER")
+      if (( attempts < FAKE_BOOTSTRAP_FAIL_TIMES )); then
+        print -r -- "$((attempts + 1))" >"$FAKE_COUNTER"
+        print -u2 "Bootstrap failed: 5: Input/output error"
+        exit 5
+      fi
+    fi
+    : >"$FAKE_STATE"
+    ;;
+  bootout)
+    rm -f "$FAKE_STATE"
+    ;;
   print)
-    [[ "${FAKE_LOADED:-0}" == "1" ]] || exit 3
+    [[ -f "$FAKE_STATE" ]] || exit 3
     print "\tstate = running"
     print "\tpid = 4242"
     print "\truns = 1"
@@ -42,7 +67,16 @@ EOF
 run_unit() {
   local test_root=$1 loaded=$2
   shift 2
-  HOME="$test_root/home" LAUNCHCTL_LOG="$test_root/launchctl.log" FAKE_LOADED="$loaded" \
+  FAKE_STATE="$test_root/loaded.marker"
+  if [[ "$loaded" == "1" ]]; then
+    : >"$FAKE_STATE"
+  else
+    rm -f "$FAKE_STATE"
+  fi
+  HOME="$test_root/home" LAUNCHCTL_LOG="$test_root/launchctl.log" FAKE_STATE="$FAKE_STATE" \
+    FAKE_BOOTSTRAP_FAIL_TIMES="${FAKE_BOOTSTRAP_FAIL_TIMES:-}" \
+    FAKE_BOOTSTRAP_ALWAYS_FAIL="${FAKE_BOOTSTRAP_ALWAYS_FAIL:-0}" \
+    FAKE_COUNTER="$test_root/bootstrap.count" \
     PATH="$test_root/fake-bin:$PATH" "$test_root/unit.sh" "$@"
 }
 
@@ -85,6 +119,18 @@ rendered=$(<"$unit_path")
 [[ "$(mutations "$install_root/launchctl.log")" == "$(print -r -- "bootout $DOMAIN/$LABEL
 bootstrap $DOMAIN $unit_path")" ]] || {
   print -u2 "install did not boot out then bootstrap the unit"
+  exit 1
+}
+[[ -f "$install_root/loaded.marker" ]] || {
+  print -u2 "install did not leave the job loaded"
+  exit 1
+}
+
+# --- reinstalling an unchanged unit must not disturb a running service ------
+: >"$install_root/launchctl.log"
+run_unit "$install_root" 1 install >/dev/null
+[[ -z "$(mutations "$install_root/launchctl.log")" ]] || {
+  print -u2 "install reloaded an unchanged unit and restarted a healthy service"
   exit 1
 }
 
@@ -138,6 +184,48 @@ status_unloaded_code=$?
 set -e
 [[ "$status_unloaded_code" -ne 0 ]] || {
   print -u2 "status succeeded on an unloaded job"
+  exit 1
+}
+
+# --- a transient bootstrap failure is retried, not reported -----------------
+retry_root=$(prepare_fixture retry)
+: >"$retry_root/launchctl.log"
+FAKE_BOOTSTRAP_FAIL_TIMES=2
+FAKE_BOOTSTRAP_ALWAYS_FAIL=0
+run_unit "$retry_root" 0 install >/dev/null
+FAKE_BOOTSTRAP_FAIL_TIMES=
+[[ "$(grep -c '^bootstrap ' "$retry_root/launchctl.log")" -eq 3 ]] || {
+  print -u2 "install did not retry the transient bootstrap failure"
+  exit 1
+}
+[[ -f "$retry_root/loaded.marker" ]] || {
+  print -u2 "install did not leave the job loaded after retrying"
+  exit 1
+}
+
+# --- a unit launchd keeps refusing restores the previous install ------------
+rollback_root=$(prepare_fixture rollback)
+rollback_unit="$rollback_root/home/Library/LaunchAgents/$LABEL.plist"
+mkdir -p "${rollback_unit:h}"
+print -r -- "previously installed unit" >"$rollback_unit"
+: >"$rollback_root/launchctl.log"
+FAKE_BOOTSTRAP_FAIL_TIMES=
+FAKE_BOOTSTRAP_ALWAYS_FAIL=1
+set +e
+run_unit "$rollback_root" 0 install >/dev/null 2>&1
+rollback_code=$?
+set -e
+FAKE_BOOTSTRAP_ALWAYS_FAIL=0
+[[ "$rollback_code" -ne 0 ]] || {
+  print -u2 "install reported success while every bootstrap failed"
+  exit 1
+}
+[[ "$(<"$rollback_unit")" == "previously installed unit" ]] || {
+  print -u2 "install did not restore the previously installed unit"
+  exit 1
+}
+[[ "$(grep -c '^bootstrap ' "$rollback_root/launchctl.log")" -gt 5 ]] || {
+  print -u2 "install did not retry the restored unit"
   exit 1
 }
 

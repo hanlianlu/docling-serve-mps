@@ -107,9 +107,18 @@ result, and loads it:
 ```
 
 The unit execs this checkout's own `.venv`, so it belongs to the source-checkout
-path. `install` is idempotent: it boots the job out before bootstrapping it
-again. `service.sh` keeps accepting exactly `start` and `stop`, because the
-lifecycle it would manage is the supervisor's here.
+path. `install` reconciles the installed unit with the template: when the
+rendered unit already matches and the job is loaded, it leaves the running
+service alone, because restarting a healthy service to reinstall an identical
+definition is pure downtime. It reloads only when the definition changed, and
+then it waits for the old job to unload, confirms the new one is running, and
+rolls back to the previous unit if launchd refuses it.
+
+`unit.sh` manages that unit *file* — not the service. `launchd` runs the
+service, exactly as it would for any other job. In the unsupervised shape the
+equivalent control is `service.env`, which `service.sh` reads. `service.sh` keeps
+accepting exactly `start` and `stop` because the lifecycle it would manage
+belongs to the supervisor here.
 
 launchd starts a process from the code on disk and never re-reads it. `KeepAlive`
 restarts a process that *exits*; it does not react to files changing underneath a
