@@ -17,11 +17,17 @@ DOMAIN="gui/$(id -u)"
 export DOCLING_SERVE_MPS_UNIT_POLL_SECONDS=0
 
 prepare_fixture() {
-  local name=$1
+  local name=$1 environment=${2:-ready}
   local test_root="$TMP_ROOT/$name"
   mkdir -p "$test_root/fake-bin" "$test_root/launchd" "$test_root/home"
   cp "$ROOT/unit.sh" "$test_root/"
   cp "$ROOT/launchd/$LABEL.plist.template" "$test_root/launchd/"
+  if [[ "$environment" == "ready" ]]; then
+    # The unit execs this path directly, so the manager requires it to exist.
+    mkdir -p "$test_root/.venv/bin"
+    print -r -- '#!/bin/zsh' >"$test_root/.venv/bin/docling-serve-mps"
+    chmod +x "$test_root/.venv/bin/docling-serve-mps"
+  fi
   cat >"$test_root/fake-bin/launchctl" <<'EOF'
 #!/bin/zsh
 set -euo pipefail
@@ -246,6 +252,32 @@ run_unit "$install_root" 1 uninstall >/dev/null
 }
 [[ "$(mutations "$install_root/launchctl.log")" == "bootout $DOMAIN/$LABEL" ]] || {
   print -u2 "uninstall did not boot out the unit"
+  exit 1
+}
+
+# --- install refuses to hand launchd a unit it cannot exec ------------------
+# A fresh clone has no .venv, which is exactly when the failure is hardest to
+# read from launchd's side.
+bare_root=$(prepare_fixture bare missing)
+: >"$bare_root/launchctl.log"
+set +e
+install_output=$(run_unit "$bare_root" 0 install 2>&1)
+install_code=$?
+set -e
+[[ "$install_code" -ne 0 ]] || {
+  print -u2 "install succeeded without a service environment"
+  exit 1
+}
+[[ "$install_output" == *"uv sync --locked"* ]] || {
+  print -u2 "install did not say how to create the environment: $install_output"
+  exit 1
+}
+[[ ! -s "$bare_root/launchctl.log" ]] || {
+  print -u2 "install touched launchd before verifying the environment"
+  exit 1
+}
+[[ ! -f "$bare_root/home/Library/LaunchAgents/$LABEL.plist" ]] || {
+  print -u2 "install wrote a unit for an environment that does not exist"
   exit 1
 }
 

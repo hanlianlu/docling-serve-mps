@@ -42,6 +42,17 @@ require_launchctl() {
   }
 }
 
+require_environment() {
+  # The unit execs this path directly. Without it launchd fails to start the job
+  # and reports a crash loop, so the missing environment is reported here, with
+  # the command that creates it, instead of surfacing as a mysterious failure.
+  [[ -x "$ROOT/.venv/bin/docling-serve-mps" ]] || {
+    print -u2 "no service environment at $ROOT/.venv/bin/docling-serve-mps"
+    print -u2 "create it first:  (cd $ROOT && uv sync --locked)"
+    return 1
+  }
+}
+
 render_text() {
   [[ -f "$TEMPLATE" ]] || {
     print -u2 "missing unit template: $TEMPLATE"
@@ -136,6 +147,7 @@ state_facts() {
 case "${1:-}" in
   install)
     require_launchctl
+    require_environment
     rendered=$(render_text) || exit 1
     if [[ -f "$UNIT" && "$rendered" == "$(<"$UNIT")" ]] && is_loaded; then
       # Reloading an unchanged unit would restart a healthy service for nothing.
@@ -175,6 +187,7 @@ case "${1:-}" in
     ;;
   restart)
     require_launchctl
+    require_environment
     if is_loaded; then
       # -k restarts the running job so it reloads the code on disk. It reuses the
       # definition launchd already has, so a changed plist needs `install`.

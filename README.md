@@ -59,7 +59,11 @@ when needed.
 
 ## Source Checkout
 
-For development or locked source deployment:
+A clone is the only way to get `service.sh` and `unit.sh`: the published wheel
+carries the Python package alone. Pick one lifecycle and stay with it — these
+two do not combine, and running both puts two servers on port 5001.
+
+Unsupervised, where the CLI daemonizes and manages itself:
 
 ```bash
 git clone https://github.com/hanlianlu/docling-serve-mps.git
@@ -75,8 +79,17 @@ CLI. Its accepted commands are also exactly `start` and `stop`:
 ./service.sh stop
 ```
 
-For a supervised deployment, `unit.sh` manages the launchd unit instead — see
-[Process supervisors](#process-supervisors).
+Supervised, where launchd owns the lifecycle and `unit.sh` installs the unit —
+do not run `service.sh start` as well:
+
+```bash
+git clone https://github.com/hanlianlu/docling-serve-mps.git
+cd docling-serve-mps
+uv sync --locked        # unit.sh installs a unit that execs this environment
+./unit.sh install
+```
+
+See [Process supervisors](#process-supervisors).
 
 ## Process supervisors
 
@@ -99,6 +112,11 @@ so launchd is the only supervisor this repository ships a unit for. The unit
 lives in `launchd/com.orliantra.docling-mps.plist.template` and `unit.sh`
 manages it, rendering that template against this checkout, validating the
 result, and loading it. Logs land in `~/Library/Logs/docling-serve-mps/`.
+
+The unit names this checkout's `.venv` and this checkout's directory, so it is
+per-machine and per-user by construction: `unit.sh` resolves both from where it
+is run and who runs it. `install` refuses to proceed without that environment
+rather than hand launchd a program it cannot exec.
 
 ```bash
 ./unit.sh install     # render, install, and load; RunAtLoad starts it now
