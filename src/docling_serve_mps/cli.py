@@ -1,7 +1,7 @@
 """Lifecycle for the Docling Serve MPS sidecar.
 
 ``start``/``stop`` manage a detached background service; ``run`` execs the
-server in the foreground so a process supervisor (launchd, systemd) can own it.
+server in the foreground so a process supervisor (launchd) can own it.
 """
 
 from __future__ import annotations
@@ -301,7 +301,7 @@ def run_service(
 ) -> None:
     """Replace this process with a foreground Docling Serve.
 
-    For process supervisors (launchd, systemd) that own the lifecycle
+    For process supervisors (launchd) that own the lifecycle
     themselves: the packaged defaults are applied here, so the supervisor unit
     only has to name this command. Nothing is daemonized, no lifecycle lock is
     taken and no pid record is written — ``stop`` intentionally does not apply,

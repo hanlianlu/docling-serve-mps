@@ -8,15 +8,15 @@ set -euo pipefail
 #
 # `service.sh` deliberately accepts exactly `start` and `stop`, because it wraps
 # the package's own lifecycle for an unsupervised process; a supervised one has
-# no lifecycle for that wrapper to manage. A systemd deployment would add a
-# sibling script rather than widen that contract.
+# no lifecycle for that wrapper to manage. The package targets Apple Silicon
+# only, so launchd is the only supervisor it ships a unit for.
 
 ROOT=${0:A:h}
 LABEL=com.orliantra.docling-mps
 TEMPLATE="$ROOT/launchd/$LABEL.plist.template"
 UNIT_DIR="$HOME/Library/LaunchAgents"
 UNIT="$UNIT_DIR/$LABEL.plist"
-LOGDIR="$HOME/Library/Logs/artrag"
+LOGDIR="$HOME/Library/Logs/docling-serve-mps"
 STATE_DIR="$HOME/Library/Application Support/docling-serve-mps"
 PREVIOUS_UNIT="$STATE_DIR/unit-previous.plist"
 DOMAIN="gui/$(id -u)"

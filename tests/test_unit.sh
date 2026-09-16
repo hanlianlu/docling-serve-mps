@@ -116,6 +116,14 @@ rendered=$(<"$unit_path")
   print -u2 "rendered unit still contains a template placeholder"
   exit 1
 }
+[[ "$rendered" == *"<string>$install_root/home/Library/Logs/docling-serve-mps/docling-mps.log</string>"* ]] || {
+  print -u2 "rendered unit does not log under the package's own log directory"
+  exit 1
+}
+[[ "$rendered" != *"artrag"* ]] || {
+  print -u2 "rendered unit logs under another project's directory"
+  exit 1
+}
 [[ "$(mutations "$install_root/launchctl.log")" == "$(print -r -- "bootout $DOMAIN/$LABEL
 bootstrap $DOMAIN $unit_path")" ]] || {
   print -u2 "install did not boot out then bootstrap the unit"

@@ -80,8 +80,8 @@ For a supervised deployment, `unit.sh` manages the launchd unit instead — see
 
 ## Process supervisors
 
-`start` daemonizes, so it does not fit launchd/systemd — those want the service
-in the foreground and own its lifecycle themselves. Use `run`:
+`start` daemonizes, so it does not fit launchd — a supervisor wants the service
+in the foreground and owns its lifecycle itself. Use `run`:
 
 ```bash
 docling-serve-mps run
@@ -94,10 +94,11 @@ instead.
 
 ### launchd (macOS)
 
-The repository ships the unit as
-`launchd/com.orliantra.docling-mps.plist.template` and manages it through
-`unit.sh`, which renders that template against this checkout, validates the
-result, and loads it:
+The package targets Apple Silicon, and `run` is the command its supervisor uses,
+so launchd is the only supervisor this repository ships a unit for. The unit
+lives in `launchd/com.orliantra.docling-mps.plist.template` and `unit.sh`
+manages it, rendering that template against this checkout, validating the
+result, and loading it. Logs land in `~/Library/Logs/docling-serve-mps/`.
 
 ```bash
 ./unit.sh install     # render, install, and load; RunAtLoad starts it now
