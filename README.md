@@ -75,6 +75,9 @@ CLI. Its accepted commands are also exactly `start` and `stop`:
 ./service.sh stop
 ```
 
+For a supervised deployment, `unit.sh` manages the launchd unit instead — see
+[Process supervisors](#process-supervisors).
+
 ## Process supervisors
 
 `start` daemonizes, so it does not fit launchd/systemd — those want the service
@@ -88,6 +91,30 @@ docling-serve-mps run
 takes no lifecycle lock and writes no pid record, so `stop` is not the way to
 stop a supervised service (the supervisor would restart it) — unload the unit
 instead.
+
+### launchd (macOS)
+
+The repository ships the unit as
+`launchd/com.orliantra.docling-mps.plist.template` and manages it through
+`unit.sh`, which renders that template against this checkout, validates the
+result, and loads it:
+
+```bash
+./unit.sh install     # render, install, and load; RunAtLoad starts it now
+./unit.sh status      # state, pid, run count, last exit code
+./unit.sh restart     # make the running service pick up the code on disk
+./unit.sh uninstall   # unload and remove the unit
+```
+
+The unit execs this checkout's own `.venv`, so it belongs to the source-checkout
+path. `install` is idempotent: it boots the job out before bootstrapping it
+again. `service.sh` keeps accepting exactly `start` and `stop`, because the
+lifecycle it would manage is the supervisor's here.
+
+launchd starts a process from the code on disk and never re-reads it. `KeepAlive`
+restarts a process that *exits*; it does not react to files changing underneath a
+running one. After pulling new code, run `./unit.sh restart` — otherwise the
+service keeps serving the old build until it happens to die.
 
 ## Configuration
 
@@ -178,21 +205,53 @@ docker compose exec -T dlightrag-api python -c \
 
 ## Upgrade
 
-Upgrade the installed application, then restart it:
+Updating means two separate things, and only the second one changes what you
+observe: **replace the code**, then **make the running process load it**. A
+service holds its code in memory from start time, so nothing restarts it just
+because files changed. How you do the second step depends on what supervises it.
+
+### Supervised by launchd
 
 ```bash
-docling-serve-mps stop
-uv tool upgrade docling-serve-mps
-docling-serve-mps start
+cd /path/to/docling-serve-mps
+git pull
+uv sync --locked
+./unit.sh restart
 ```
 
-For a source checkout, explicitly update and review the lockfile before
-restarting:
+Use `uv lock --upgrade` instead of the plain sync when you intend to move the
+pinned Docling Serve version, and review the lockfile diff before syncing:
+
+```bash
+uv lock --upgrade
+uv sync --locked
+./unit.sh restart
+```
+
+Skipping the restart is the common mistake: `./unit.sh status` will still report
+`state = running`, because the old process never exited.
+
+### Unsupervised source checkout
 
 ```bash
 ./service.sh stop
 uv lock --upgrade
+uv sync --locked
 ./service.sh start
+```
+
+### Unsupervised `uv tool` install
+
+```bash
+uv tool upgrade docling-serve-mps
+```
+
+The tool's own lifecycle commands still own it, so restart the same way you
+started it:
+
+```bash
+docling-serve-mps stop
+docling-serve-mps start
 ```
 
 ## Troubleshooting
