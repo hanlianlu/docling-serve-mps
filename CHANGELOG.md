@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.1
+
+- Serve Docling's implicit code/formula default with an engine MPS can run.
+  Docling Serve consults its preset registry only when a request names a preset,
+  so a request that enables code or formula enrichment without one — the shape
+  the bundled UI sends, and any hand-written API call in the same shape — ran
+  Docling's own `codeformulav2` default, whose only engine refuses MPS outright
+  and failed the whole conversion. Both lifecycle modes now exec a launcher that
+  replaces that one stage spec with the `granite_docling` preset Docling already
+  ships for Apple Silicon; naming a preset still wins, and `codeformulav2` is
+  still refused by name.
+- Keep `stop` and `start` able to recognize a service started by an earlier
+  release. The launcher changes the command line the PID record fingerprints, so
+  the previous fingerprint stays accepted instead of leaving an upgraded machine
+  with a service it refuses to stop or, worse, a second server beside it.
+- Fail at startup rather than per request when Docling renames either stage spec
+  or drops the MLX engine, and warn when `UVICORN_WORKERS` is greater than one,
+  where uvicorn worker processes import Docling themselves and the substituted
+  default does not reach them.
+
 ## 0.7.0
 
 - Raise the dependency floors to docling-serve 1.34.0 and docling-slim 2.128.0,

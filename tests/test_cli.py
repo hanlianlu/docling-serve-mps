@@ -133,8 +133,48 @@ class CliContractTest(unittest.TestCase):
             kill.assert_not_called()
             self.assertFalse(paths.pid.exists())
 
+    def test_child_command_execs_the_packaged_launcher(self) -> None:
+        command = cli._child_command(
+            {
+                "DOCLING_HOST": "127.0.0.1",
+                "DOCLING_PORT": "5001",
+                "UVICORN_WORKERS": "1",
+            }
+        )
+
+        # The launcher installs the defaults that no environment variable can
+        # express, then hands over to Docling Serve's own CLI.
+        self.assertEqual(command[1:4], ["-m", "docling_serve_mps.launcher", "run"])
+        self.assertIn(cli.COMMAND_MARKER, " ".join(command))
+
     def test_stop_terminates_managed_process(self) -> None:
         marker = cli.COMMAND_MARKER
+        process = subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)", marker]
+        )
+        try:
+            with tempfile.TemporaryDirectory() as temporary_directory:
+                paths = cli.ServicePaths(Path(temporary_directory))
+                paths.root.mkdir(parents=True, exist_ok=True)
+                paths.pid.write_text(
+                    json.dumps({"pid": process.pid, "command_marker": marker}),
+                    encoding="utf-8",
+                )
+
+                result = cli.stop_service(paths=paths, timeout=5.0)
+
+                self.assertIn("Stopped", result)
+                self.assertFalse(paths.pid.exists())
+                self.assertIsNotNone(process.poll())
+        finally:
+            if process.poll() is None:
+                process.terminate()
+                process.wait(timeout=5)
+
+    def test_stop_accepts_the_legacy_command_marker(self) -> None:
+        # A service started by a release that exec'd Docling Serve directly must
+        # still be stoppable, or upgrading strands it on port 5001.
+        marker = cli.LEGACY_COMMAND_MARKERS[0]
         process = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(30)", marker]
         )

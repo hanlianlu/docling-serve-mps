@@ -187,6 +187,24 @@ before sending SIGTERM.
 Keep the service on `127.0.0.1`. The UI is not separately authenticated, so do
 not bind to `0.0.0.0` unless an authenticated reverse proxy protects it.
 
+### Code and formula enrichment
+
+One default is not an environment variable, because Docling Serve only consults
+its preset registry when a request *names* a preset. A request that turns on
+`do_code_enrichment` or `do_formula_enrichment` without naming one — which is
+exactly what the bundled UI sends — runs Docling's own implicit default, the
+`codeformulav2` preset, whose only engine refuses MPS.
+
+Every entry point in this package therefore execs a launcher that substitutes
+that one stage spec with the `granite_docling` preset Docling already ships for
+Apple Silicon, before Docling's pipeline options are imported. Naming a preset
+still goes through Docling Serve's registry and still wins, and `codeformulav2`
+is still refused by name through `DOCLING_SERVE_ALLOWED_CODE_FORMULA_PRESETS`.
+
+This assumes a single worker: uvicorn worker processes import Docling on their
+own, so the substitution does not reach them, and the launcher says so when
+`UVICORN_WORKERS` is greater than one.
+
 ## OCR
 
 The service replaces Docling Serve's built-in `auto` OCR preset through its

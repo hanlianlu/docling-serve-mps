@@ -23,7 +23,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Iterator, Mapping, Sequence
 
-COMMAND_MARKER = "-m docling_serve run"
+COMMAND_MARKER = "-m docling_serve_mps.launcher run"
+LEGACY_COMMAND_MARKERS = ("-m docling_serve run",)
+"""Markers written by releases that exec'd Docling Serve directly. A pid record
+carrying one still belongs to this package's service, so an upgrade must be able
+to stop and replace it instead of stranding it."""
 OCR_PRESET = (
     '{"auto":{"kind":"ocrmac","framework":"vision",'
     '"recognition":"accurate","lang":["zh-Hans","en-US"]}}'
@@ -185,6 +189,12 @@ def _lifecycle_lock(paths: ServicePaths) -> Iterator[None]:
         yield
 
 
+def _is_managed_marker(marker: str) -> bool:
+    """Whether a pid record was written by this package, this release or older."""
+
+    return marker == COMMAND_MARKER or marker in LEGACY_COMMAND_MARKERS
+
+
 def _service_url(environment: Mapping[str, str], path: str = "") -> str:
     host = environment["DOCLING_HOST"]
     port = environment["DOCLING_PORT"]
@@ -220,10 +230,12 @@ def wait_for_health(
 
 
 def _child_command(environment: Mapping[str, str]) -> list[str]:
+    # The launcher installs the packaged defaults that are not expressible as
+    # environment variables, then hands over to Docling Serve's own CLI.
     return [
         sys.executable,
         "-m",
-        "docling_serve",
+        "docling_serve_mps.launcher",
         "run",
         "--host",
         environment["DOCLING_HOST"],
@@ -270,7 +282,7 @@ def start_service(
         if record is not None:
             pid = int(record["pid"])
             marker = str(record["command_marker"])
-            if marker != COMMAND_MARKER:
+            if not _is_managed_marker(marker):
                 resolved_paths.pid.unlink(missing_ok=True)
                 record = None
             else:
@@ -354,7 +366,7 @@ def stop_service(
 
         pid = int(record["pid"])
         marker = str(record["command_marker"])
-        if marker != COMMAND_MARKER:
+        if not _is_managed_marker(marker):
             resolved_paths.pid.unlink(missing_ok=True)
             raise ServiceError(
                 f"Refusing to stop unrelated process {pid}; removed stale state."
