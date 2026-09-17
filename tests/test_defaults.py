@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import sys
 import unittest
@@ -170,11 +171,15 @@ class LauncherTest(unittest.TestCase):
             env=environment,
         )
 
-        self.assertIn("implicit code/formula default", result.stdout)
-        self.assertIn("ibm-granite/granite-docling-258M", result.stdout)
-        # Docling Serve's own CLI parsed the arguments and printed its usage.
-        self.assertIn("Usage:", result.stdout)
-        self.assertIn("Run a Docling Serve app in production mode", result.stdout)
+        stdout = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+
+        self.assertIn("implicit code/formula default", stdout)
+        self.assertIn("ibm-granite/granite-docling-258M", stdout)
+        # Docling Serve's own CLI parsed the arguments and printed its usage: the
+        # usage line names this module, and the command list is docling-serve's.
+        self.assertIn("Usage:", stdout)
+        self.assertIn("docling_serve_mps.launcher", stdout)
+        self.assertIn("rq-worker", stdout)
 
     def test_declared_workers_is_read_from_the_passthrough_arguments(self) -> None:
         from docling_serve_mps.launcher import _declared_workers
