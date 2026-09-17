@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.7.0
+
+- Raise the dependency floors to docling-serve 1.34.0 and docling-slim 2.128.0,
+  and refresh the locked Apple Silicon runtime: docling-core 2.97.0,
+  docling-parse 7.20.0, docling-ibm-models 4.0.2, docling-jobkit 3.7.0, PyTorch
+  2.14.0, and torchvision 0.29.0.
+- Move to Transformers 5.17.0 and MLX 0.32.2, which releases the previous
+  `mlx-vlm` 0.6.4 ceiling: the MLX runtime that serves the code/formula preset
+  is now 0.7.1.
+- Document the behavior this refresh re-verified, because both mechanisms are
+  the reason this package exists and neither is upstream's default:
+  - Docling 2.128.0 still hardcodes the `codeformulav2` preset as the implicit
+    default for code/formula enrichment. That preset still has no MLX engine,
+    so the packaged `default` alias and the allow-list remain necessary for any
+    request that names a preset; upstream's own engine selection rejects MPS for
+    it (`MPS is not supported by this model`), which is why the omit-the-preset
+    path stays unsupported.
+  - The override resolves `default` to `granite_docling`, and docling's
+    auto-inline engine still selects MLX for it on Apple Silicon, loading
+    `ibm-granite/granite-docling-258M-mlx` rather than the Transformers path.
+  - The OCRMac `auto` preset override and the docling-core decoded-image
+    ceiling (`DOCLINGCORE_MAX_IMAGE_DECODED_SIZE`, 64 MiB) both still apply;
+    docling-core 2.97.0 continues to read that setting and to enforce it when it
+    materializes a referenced image.
+
 ## 0.6.0
 
 - Add `docling-serve-mps run`: exec Docling Serve in the foreground with the
