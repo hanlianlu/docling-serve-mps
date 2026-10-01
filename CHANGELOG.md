@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.8.0
+
+- Raise the dependency floors to docling-serve 1.36.0 and docling-slim 2.132.0,
+  and refresh the locked Apple Silicon runtime: docling-core 2.99.0, docling-parse
+  7.22.1, docling-ibm-models 4.0.3, docling-jobkit 3.8.1, docling-mcp 3.2.1,
+  PyTorch 2.14.1, torchvision 0.29.1, Transformers 5.18.0, MLX 0.32.3, and
+  mlx-vlm 0.7.4.
+- Drop Gradio and its transitive dependencies (gradio, gradio-client, groovy,
+  hf-gradio, orjson, pydub, safehttpx, semantic-version, tomlkit): docling-serve
+  1.36 ships its rebuilt UI as a static bundle inside the package, so the `ui`
+  extra no longer pulls a web framework.
+  The UI still serves at `http://127.0.0.1:5001/ui/` behind the same
+  `DOCLING_SERVE_ENABLE_UI` switch.
+- Re-verify both mechanisms this package exists for on the new runtime, against a
+  live service. A request that enables code or formula enrichment without naming
+  a preset — what the bundled UI sends — still loads
+  `ibm-granite/granite-docling-258M-mlx` through the launcher's substitution, and
+  the OCRMac `auto` preset still extracts Simplified Chinese through Apple Vision
+  (checked with an image-only PDF that carries no text layer). docling-core
+  2.99.0 still reads `DOCLINGCORE_MAX_IMAGE_DECODED_SIZE`.
+- Expect different parse output from Docling 2.132.0 on some PDFs: upstream
+  replaced the PDF reading-order algorithm, which changes element order and
+  grouping on tables and multi-column pages.
+
 ## 0.7.1
 
 - Serve Docling's implicit code/formula default with an engine MPS can run.
