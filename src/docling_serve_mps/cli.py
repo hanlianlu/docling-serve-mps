@@ -41,7 +41,11 @@ DEFAULT_ENVIRONMENT = {
     "VECLIB_MAXIMUM_THREADS": "8",
     "DOCLING_SERVE_ENG_LOC_NUM_WORKERS": "1",
     "DOCLING_SERVE_LOAD_MODELS_AT_BOOT": "true",
-    "DOCLING_SERVE_OPTIONS_CACHE_SIZE": "2",
+    # One cached pipeline per options hash; 2 slots thrashed against the 9
+    # distinct hashes ArtRAG alone produced, and every eviction re-initialised a
+    # pipeline that answered with EMPTY documents while it warmed (2026-10-06).
+    # Raise only alongside memory headroom: a warm pipeline holds its models.
+    "DOCLING_SERVE_OPTIONS_CACHE_SIZE": "8",
     "DOCLING_HOST": "127.0.0.1",
     "DOCLING_PORT": "5001",
     "UVICORN_WORKERS": "1",
@@ -212,18 +216,96 @@ def health_ready(environment: Mapping[str, str]) -> bool:
         return False
 
 
+PROBE_TEXT = b"DOCLING PIPELINE PROBE 12345"
+PROBE_INTERVAL = 1.0
+PROBE_TIMEOUT = 120.0
+"""A cold pipeline answers ``status="success"`` with ``errors=[]`` and an EMPTY
+document, so ``/health`` cannot distinguish a working service from one that
+silently ingests every document as nothing -- observed for ~70 minutes on
+2026-10-06. The probe below is what stops ``start`` reporting ready in that
+state. Vector text on the page is deliberate: under ``force_ocr=true`` the empty
+result only happens on the PDF pipeline this probe has to exercise."""
+
+
+def _probe_pdf() -> bytes:
+    """A minimal one-page PDF carrying one line of text."""
+    stream = b"BT /F1 18 Tf 24 60 Td (" + PROBE_TEXT + b") Tj ET"
+    objects = (
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 120] "
+        b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n"
+        + stream
+        + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    )
+    document = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(document))
+        document += b"%d 0 obj\n" % number + body + b"\nendobj\n"
+    start_xref = len(document)
+    document += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    document += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    document += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (
+        len(objects) + 1,
+        start_xref,
+    )
+    return bytes(document)
+
+
+def pipeline_probe(environment: Mapping[str, str]) -> str:
+    """``"warm"``, ``"empty"`` or ``"unreachable"`` for the PDF pipeline."""
+    boundary = "----docling-serve-mps-probe"
+    body = b"".join(
+        b'--%s\r\nContent-Disposition: form-data; name="%s"\r\n\r\n%s\r\n'
+        % (boundary.encode(), name.encode(), value.encode())
+        for name, value in (("to_formats", "md"), ("force_ocr", "true"))
+    )
+    body += (
+        b'--%s\r\nContent-Disposition: form-data; name="files"; '
+        b'filename="probe.pdf"\r\nContent-Type: application/pdf\r\n\r\n'
+        % boundary.encode()
+    ) + _probe_pdf() + b"\r\n--%s--\r\n" % boundary.encode()
+    request = urllib.request.Request(
+        _service_url(environment, "/v1/convert/file"),
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=PROBE_TIMEOUT) as response:
+            payload = json.load(response)
+    except (OSError, TimeoutError, urllib.error.URLError, ValueError):
+        return "unreachable"
+    text = (payload.get("document") or {}).get("md_content") or ""
+    return "warm" if text.strip() else "empty"
+
+
 def wait_for_health(
     environment: Mapping[str, str],
     pid: int,
     timeout: float,
 ) -> None:
     deadline = time.monotonic() + timeout
+    serving = False
     while time.monotonic() < deadline:
         if health_ready(environment):
-            return
+            serving = True
+            if pipeline_probe(environment) == "warm":
+                return
         if process_command(pid) is None:
             raise ServiceError("Docling Serve exited before becoming healthy.")
-        time.sleep(0.5)
+        time.sleep(PROBE_INTERVAL)
+    if serving:
+        raise ServiceError(
+            "Docling Serve answers /health but returned an EMPTY document for the "
+            f"probe within {timeout:.0f}s. Ingesting now would store every document "
+            'as nothing: the parser reports status="success" with errors=[] and no '
+            "text. Raise DOCLING_SERVE_MPS_START_TIMEOUT to wait longer, and check "
+            "DOCLING_SERVE_OPTIONS_CACHE_SIZE -- evicting and re-initialising a "
+            "pipeline reintroduces this window."
+        )
     raise ServiceError(
         "Docling Serve is still starting. Run start again to continue the health check."
     )

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.8.1
+
+- Prove the PDF pipeline produces text before reporting ready. A cold pipeline
+  answers `status="success"` with `errors=[]` and an EMPTY document, so `/health`
+  could not tell a working service from one that silently ingests everything as
+  nothing — seen for ~70 minutes on 2026-10-06, where a bulk ArtRAG ingest stored
+  empty documents and failed the rest with `Docling IR builder produced zero
+  blocks`. `wait_for_health` now converts a bundled one-page probe with
+  `force_ocr=true` and returns only once text comes back; if `/health` is up but
+  the probe stays empty it fails loudly with that diagnosis rather than letting
+  callers ingest into the void.
+- Raise `DOCLING_SERVE_OPTIONS_CACHE_SIZE` from 2 to 8. Pipelines are cached per
+  options hash and ArtRAG alone produced 9 distinct hashes, so entries were
+  evicted and re-initialised constantly — and each re-initialisation reopened
+  the empty-document window above.
+
 ## 0.8.0
 
 - Raise the dependency floors to docling-serve 1.36.0 and docling-slim 2.132.0,

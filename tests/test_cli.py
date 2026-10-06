@@ -273,5 +273,52 @@ class CliContractTest(unittest.TestCase):
 
         run_service.assert_called_once_with()
 
+
+class PipelineProbeTest(unittest.TestCase):
+    """A cold pipeline answers with an empty document, so /health alone is not
+    proof that it is safe to ingest."""
+
+    environment = {"DOCLING_HOST": "127.0.0.1", "DOCLING_PORT": "5001"}
+
+    def test_probe_pdf_is_a_parseable_pdf(self) -> None:
+        document = cli._probe_pdf()
+        self.assertTrue(document.startswith(b"%PDF-"))
+        self.assertIn(cli.PROBE_TEXT, document)
+        self.assertIn(b"startxref", document)
+
+    def _probe_returning(self, payload: dict) -> str:
+        response = Mock()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        response.read = Mock(return_value=json.dumps(payload).encode())
+        with patch.object(cli.urllib.request, "urlopen", return_value=response):
+            return cli.pipeline_probe(self.environment)
+
+    def test_probe_is_warm_only_when_text_comes_back(self) -> None:
+        self.assertEqual(
+            self._probe_returning({"document": {"md_content": "text"}}), "warm"
+        )
+
+    def test_probe_reports_an_empty_document_as_empty(self) -> None:
+        self.assertEqual(self._probe_returning({"document": {"md_content": ""}}), "empty")
+        self.assertEqual(self._probe_returning({"document": {}}), "empty")
+
+    def test_probe_reports_unreachable_on_transport_failure(self) -> None:
+        with patch.object(cli.urllib.request, "urlopen", side_effect=OSError):
+            self.assertEqual(cli.pipeline_probe(self.environment), "unreachable")
+
+    def test_wait_for_health_refuses_an_empty_pipeline(self) -> None:
+        with (
+            patch.object(cli, "health_ready", return_value=True),
+            patch.object(cli, "pipeline_probe", return_value="empty"),
+            patch.object(cli, "process_command", return_value="command"),
+            patch.object(cli.time, "sleep"),
+        ):
+            with self.assertRaises(cli.ServiceError) as caught:
+                cli.wait_for_health(self.environment, pid=1, timeout=0.05)
+
+        self.assertIn("EMPTY document", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
