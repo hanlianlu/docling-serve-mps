@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Add `docling-serve-mps check`: probe a *running* service with a real
+  conversion and exit non-zero when the pipeline answers with an empty document.
+  0.8.1 proved the pipeline before reporting ready at `start`, but a long-lived
+  process can still degrade later — on 2026-10-07 a service that had been up for
+  five days served `status="success"` with `errors=[]` and no text for every
+  PDF while `/health` stayed green; the bulk ingest failed with `Docling IR
+  builder produced zero blocks` until the unit was restarted and warmed again.
+  `check` prints `warm`, `empty` (with the restart remedy), or `unreachable`, so
+  monitoring and pre-bulk-run gates get an authoritative answer instead of a
+  bare `/health`.
+
 ## 0.8.1
 
 - Prove the PDF pipeline produces text before reporting ready. A cold pipeline

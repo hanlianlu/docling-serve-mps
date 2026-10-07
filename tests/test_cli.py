@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import subprocess
@@ -11,7 +12,28 @@ from docling_serve_mps import cli
 
 
 class CliContractTest(unittest.TestCase):
-    def test_parser_exposes_start_stop_and_run(self) -> None:
+    def test_check_service_reports_warm(self) -> None:
+        with patch.object(cli, "health_ready", return_value=True), patch.object(
+            cli, "pipeline_probe", return_value="warm"
+        ):
+            self.assertEqual(cli.check_service(environment={"DOCLING_HOST": "127.0.0.1", "DOCLING_PORT": "5001"}), 0)
+
+    def test_check_service_fails_on_empty_pipeline(self) -> None:
+        # /health green + empty document is the 2026-10-06 silent-ingest state:
+        # the check must fail so operators do not ingest into it.
+        with patch.object(cli, "health_ready", return_value=True), patch.object(
+            cli, "pipeline_probe", return_value="empty"
+        ), patch("sys.stderr", new_callable=io.StringIO) as stderr:
+            self.assertEqual(cli.check_service(environment={"DOCLING_HOST": "127.0.0.1", "DOCLING_PORT": "5001"}), 1)
+        self.assertIn("EMPTY document", stderr.getvalue())
+
+    def test_check_service_fails_when_unreachable(self) -> None:
+        with patch.object(cli, "health_ready", return_value=False), patch(
+            "sys.stderr", new_callable=io.StringIO
+        ):
+            self.assertEqual(cli.check_service(environment={"DOCLING_HOST": "127.0.0.1", "DOCLING_PORT": "5001"}), 1)
+
+    def test_parser_exposes_start_stop_check_and_run(self) -> None:
         parser = cli.build_parser()
         subparsers = next(
             action
@@ -19,7 +41,7 @@ class CliContractTest(unittest.TestCase):
             if action.__class__.__name__ == "_SubParsersAction"
         )
 
-        self.assertEqual(set(subparsers.choices), {"start", "stop", "run"})
+        self.assertEqual(set(subparsers.choices), {"start", "stop", "check", "run"})
 
     def test_child_environment_has_secure_mps_ocr_defaults(self) -> None:
         with patch.dict(os.environ, {}, clear=True):

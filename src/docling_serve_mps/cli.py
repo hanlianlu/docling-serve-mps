@@ -435,6 +435,45 @@ def _started_message(
     )
 
 
+def check_service(
+    paths: ServicePaths | None = None,
+    environment: Mapping[str, str] | None = None,
+) -> int:
+    """Report whether the running pipeline actually converts a document.
+
+    Exits 0 only for ``warm``. ``empty`` means the service answers ``/health``
+    but stores every document as nothing -- the 2026-10-06/07 failure mode, in
+    which bulk ingests silently wrote empty documents (or failed with
+    "Docling IR builder produced zero blocks") while health checks stayed green.
+    """
+    resolved_environment = (
+        environment
+        if environment is not None
+        else build_child_environment(paths or ServicePaths.from_environment())
+    )
+    if not health_ready(resolved_environment):
+        print("unreachable: /health did not answer 200. Run start.", file=sys.stderr)
+        return 1
+    state = pipeline_probe(resolved_environment)
+    if state == "warm":
+        print(f"warm: {_service_url(resolved_environment)} converts a probe document.")
+        return 0
+    if state == "empty":
+        print(
+            "empty: /health is green but the pipeline returned an EMPTY document. "
+            "Ingesting now would store every document as nothing. Restart the "
+            "service (restart the launchd unit or run stop && start) and re-run "
+            "this check.",
+            file=sys.stderr,
+        )
+        return 1
+    print(
+        "unreachable: the conversion probe did not complete. Check the service log.",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def stop_service(
     *,
     paths: ServicePaths | None = None,
@@ -485,6 +524,14 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("start", help="Start the background service.")
     commands.add_parser("stop", help="Stop the background service.")
     commands.add_parser(
+        "check",
+        help=(
+            "Probe the running service with a real conversion. /health alone "
+            "cannot tell a working pipeline from one that silently returns "
+            "empty documents."
+        ),
+    )
+    commands.add_parser(
         "run",
         help=(
             "Run Docling Serve in the foreground with the packaged defaults, for "
@@ -501,6 +548,8 @@ def run_cli(argv: Sequence[str] | None = None) -> int:
             message = start_service()
         elif arguments.command == "stop":
             message = stop_service()
+        elif arguments.command == "check":
+            return check_service()
         else:
             # Foreground mode execs the server; reaching this line means the
             # exec never happened.

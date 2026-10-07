@@ -42,6 +42,13 @@ docling-serve-mps start
 needed, waits for the health endpoint, and prints the API, UI, and log
 locations. Repeating it is safe and reports the existing managed process.
 
+Verify that a *running* service still converts documents — a long-lived process
+can start returning empty documents while `/health` stays green:
+
+```bash
+docling-serve-mps check     # warm | empty | unreachable; exit 0 only for warm
+```
+
 Open the local UI at:
 
 ```text
