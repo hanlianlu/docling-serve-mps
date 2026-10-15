@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
 
 - Add `docling-serve-mps check`: probe a *running* service with a real
   conversion and exit non-zero when the pipeline answers with an empty document.
@@ -12,6 +12,33 @@
   `check` prints `warm`, `empty` (with the restart remedy), or `unreachable`, so
   monitoring and pre-bulk-run gates get an authoritative answer instead of a
   bare `/health`.
+
+- Raise the dependency floors to docling-serve 1.37.0 and docling-slim 2.139.0,
+  and refresh the locked Apple Silicon runtime: docling-core 2.101.1,
+  docling-parse 7.22.3, docling-jobkit 3.8.2, MLX 0.32.4, and mlx-vlm 0.7.8.
+  PyTorch 2.14.1, torchvision 0.29.1, Transformers 5.19.0, docling-ibm-models
+  4.0.3, docling-mcp 3.3.0, and OCRMac 1.0.1 are already the newest releases
+  these floors resolve to, so the MPS runtime itself is unchanged.
+- Follow `datasets` down when mlx-vlm 0.7.8 adds it: it declares
+  `fsspec[http]<=2026.7.0`, which moves fsspec from 2026.9.0 back to 2026.7.0.
+  That ceiling is the only resolver-imposed move in this refresh; nothing here is
+  held back by hand.
+- Docling Serve 1.37.0 points its own `default_code_formula_preset` at a real
+  preset and keeps custom OCR presets selectable, so the packaged defaults stay
+  as they are. Checked on the new runtime: the launcher's substitution still
+  resolves the implicit code/formula default to
+  `ibm-granite/granite-docling-258M` with the MLX engine, the OCRMac `auto` preset
+  still parses through the registry, docling 2.139.0 still exposes
+  `CODE_FORMULA_CODEFORMULAV2` and `CODE_FORMULA_GRANITE_DOCLING`, and every
+  `DOCLING_SERVE_*`, `UVICORN_*`, `DOCLING_*` and `DOCLINGCORE_*` setting this
+  package sets is read back with the intended value.
+- The live-service conversion re-check this package usually does after a
+  refresh — code/formula enrichment through MLX, and Simplified-Chinese OCR
+  through the OCRMac preset, on a real document — is still outstanding for this
+  release; it needs the service restarted onto the new runtime.
+- Expect different parse output on some documents from Docling 2.135.0-2.139.0,
+  which carry parser fixes across PDF (pypdfium2 cell placement and page boxes),
+  DOCX, PPTX, ODF, HTML and AsciiDoc.
 
 ## 0.8.1
 
