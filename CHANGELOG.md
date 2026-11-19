@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.10.0
+
+- Raise the dependency floors to docling-serve 1.38.2 and docling-slim 2.151.1,
+  and refresh the locked Apple Silicon runtime: docling-core 2.107.1,
+  docling-parse 7.27.0, docling-jobkit 3.9.1, docling-ibm-models 4.0.4,
+  docling-mcp 3.5.0, PyTorch 2.15.0, torchvision 0.29.2, Transformers 5.23.0,
+  mlx-audio 0.6.7, and mlx-vlm 0.8.0. MLX 0.32.4 and OCRMac 1.0.1 are already
+  the newest releases these floors resolve to.
+- PyTorch moves a minor version, 2.14.1 to 2.15.0. The lock still resolves one
+  torch and one torchvision from the macOS arm64 wheels, with MPS built and
+  available.
+- Several major bumps arrive transitively: Pillow 13.0.0, pyobjc 13.0 (the
+  Vision binding OCRMac drives), websockets 17.4, wrapt 2.5.2, smart-open 9.0.6,
+  soupsieve 4.1.2, and croniter 7.0.0. No locked entry moved backwards and
+  nothing is held back by hand.
+- Docling Serve 1.38 adds RQ and Ray engine settings and the
+  `Accept-Docling-Document-Version` header on the convert endpoints. None of them
+  touches the local engine this package runs, so the packaged defaults stay as
+  they are. Checked on the new runtime: the launcher's substitution still
+  resolves the implicit code/formula default to `ibm-granite/granite-docling-258M`
+  with the MLX engine, the OCRMac `auto` preset still reads Simplified Chinese
+  through Apple Vision on an image-only PDF, `DOCLINGCORE_MAX_IMAGE_DECODED_SIZE`
+  is still read by docling-core, and `check` answers `warm` on a second instance.
+- Code and formula enrichment through MLX was not converted end to end for this
+  release: the check ran offline and the `granite-docling-258M-mlx` weights were
+  not in the local cache. The request did reach the MLX engine with that
+  repository; a live conversion after the service is restarted onto this
+  runtime is still outstanding.
+- Expect different parse output on some documents from Docling 2.140.0-2.151.1.
+  Relevant to this package: an enclosed region is no longer OCRed twice, macOS
+  OCR no longer writes a temporary PNG per crop, `docling` can now replace a
+  broken PDF text layer with OCR, and decoded image pages are limited in size.
+  Parser fixes also land for PDF (hyphens, superscripts, Arabic presentation
+  forms, NUL glyphs), DOCX, PPTX, XLSX, HTML, Markdown, LaTeX, ODF and AsciiDoc.
+
 ## 0.9.0
 
 - Add `docling-serve-mps check`: probe a *running* service with a real
