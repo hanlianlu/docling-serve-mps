@@ -20,8 +20,8 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
 ]
 dependencies = [
-    "docling-serve[ui]>=1.37.0",
-    "docling-slim[feat-ocr-mac]>=2.139.0",
+    "docling-serve[ui]>=1.38.2",
+    "docling-slim[feat-ocr-mac]>=2.151.1",
 ]
 
 [project.scripts]
