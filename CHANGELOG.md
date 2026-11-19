@@ -2,6 +2,9 @@
 
 ## 0.10.0
 
+- CI and the PyPI release build run on `macos-26` (Apple Silicon). GitHub retired
+  the arm64 `macos-14` image, which is why 0.8.x and 0.9.0 never reached PyPI;
+  0.10.0 carries their changes.
 - Raise the dependency floors to docling-serve 1.38.2 and docling-slim 2.151.1,
   and refresh the locked Apple Silicon runtime: docling-core 2.107.1,
   docling-parse 7.27.0, docling-jobkit 3.9.1, docling-ibm-models 4.0.4,
